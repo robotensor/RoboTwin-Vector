@@ -36,6 +36,6 @@ def eval(TASK_ENV, model, observation):
         model.update_obs(obs)  # Update Observation, `update_obs` here can be modified
 
 
-def reset_model(
-        model):  # Clean the model cache at the beginning of every evaluation episode, such as the observation window
+def reset_model(model):  
+    # Clean the model cache at the beginning of every evaluation episode, such as the observation window
     pass
