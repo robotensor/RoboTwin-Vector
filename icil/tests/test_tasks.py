@@ -3,12 +3,11 @@ from pathlib import Path
 import pytest
 
 from robotwin_icil import arms, tasks
+from robotwin_icil.robotwin import ROBOTWIN_ROOT
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-ROBOTWIN_ROOT = REPO_ROOT / "vendor" / "RoboTwin"
-
+# icil/ lives at the root of its RoboTwin fork, so the checkout is always there in this repository.
 needs_robotwin = pytest.mark.skipif(
-    not (ROBOTWIN_ROOT / "envs").is_dir(), reason="RoboTwin submodule not initialised"
+    not (ROBOTWIN_ROOT / "envs").is_dir(), reason="no RoboTwin checkout around icil/"
 )
 
 

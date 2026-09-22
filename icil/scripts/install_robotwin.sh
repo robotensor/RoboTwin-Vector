@@ -14,7 +14,7 @@
 #
 #   bash scripts/install_robotwin.sh              # env, deps, patches, rendering, CuRobo, assets
 #   ROBOTWIN_SKIP_ASSETS=1 bash scripts/...       # everything but the multi-GB asset download
-#   ROBOTWIN_ROOT=/path/to/RoboTwin bash ...      # a RoboTwin checkout other than vendor/RoboTwin
+#   ROBOTWIN_ROOT=/path/to/RoboTwin bash ...      # a RoboTwin checkout other than the one icil/ is in
 #   ROBOTWIN_GPU_PATH=reference|blackwell bash ...# force a path instead of detecting it
 #
 # pytorch3d is deliberately not installed. RoboTwin imports it in a try/except in
@@ -22,8 +22,9 @@
 # and joint state only, so paying for a CUDA source build buys nothing.
 set -euo pipefail
 
+# REPO_ROOT is icil/, this harness; the RoboTwin checkout is the fork it sits in.
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ROBOTWIN_ROOT="${ROBOTWIN_ROOT:-${REPO_ROOT}/vendor/RoboTwin}"
+ROBOTWIN_ROOT="${ROBOTWIN_ROOT:-$(cd "${REPO_ROOT}/.." && pwd)}"
 CONDA_ROOT="${CONDA_ROOT:-/root/miniforge3}"
 ENV_NAME="${ROBOTWIN_ENV_NAME:-robotwin}"
 PY_VERSION="3.10"
@@ -32,7 +33,7 @@ CUROBO_VERSION="v0.7.8"
 log() { printf '\033[95m[install]\033[0m %s\n' "$*"; }
 
 if [[ ! -f "${ROBOTWIN_ROOT}/envs/_base_task.py" ]]; then
-    echo "${ROBOTWIN_ROOT} is empty; run: git submodule update --init vendor/RoboTwin" >&2
+    echo "${ROBOTWIN_ROOT} is not a RoboTwin checkout (no envs/_base_task.py)" >&2
     exit 1
 fi
 

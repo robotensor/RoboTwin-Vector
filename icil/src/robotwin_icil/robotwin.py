@@ -2,16 +2,17 @@
 
 Everything else in the package stays importable without SAPIEN, assets or a GPU, so the protocol,
 records and reporting are covered by tests that run in CI. Import this module and you have taken a
-dependency on `vendor/RoboTwin`.
+dependency on the RoboTwin checkout this package lives in: `icil/` sits at the root of a RoboTwin fork
+(see `PATCHES.md` there), so the simulator and this harness are one commit.
 
-The mechanisms reused here, all from `vendor/RoboTwin`:
+The mechanisms reused here, all from that checkout:
 
 - `envs/<task>.py` — one class per task over `Base_Task`; `play_once()` is the scripted expert.
 - `Base_Task.setup_demo(now_ep_num=…, seed=S, **args)` — seeds numpy and torch, then builds the
   scene, so generation is deterministic in (task, seed, config).
 - `Base_Task._take_picture()` — called from `take_dense_action` every `save_freq` control steps
   while `save_data` is set. Upstream pickles the frame to a cache directory; we intercept it and
-  keep frames in memory instead. The submodule is never patched.
+  keep frames in memory instead. Upstream files are patched only where `PATCHES.md` says.
 - `env.scene.step()` — every physics step, in `take_dense_action`, `together_move_to_pose` and
   `take_action` alike. `clock` shadows it on the scene instance to count simulated time.
 """
@@ -36,8 +37,12 @@ import yaml
 from .demo import Demonstration, Frame
 from .scene import SceneFingerprint, unique_names
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-ROBOTWIN_ROOT = REPO_ROOT / "vendor" / "RoboTwin"
+#: `icil/`, this harness's own directory (its pyproject, tests and docs).
+ICIL_ROOT = Path(__file__).resolve().parents[2]
+#: The repository: a RoboTwin fork with `icil/` at its root. Its commit is the benchmark's and the
+#: simulator's alike.
+REPO_ROOT = ICIL_ROOT.parent
+ROBOTWIN_ROOT = REPO_ROOT
 
 
 class RoboTwinError(RuntimeError):
@@ -129,13 +134,13 @@ def _ensure_importable() -> None:
     """RoboTwin is a checkout, not a package: it imports from, and loads assets relative to, its root.
 
     `envs/utils/create_actor.py` and `_base_task.py` open `./assets/...` against the working
-    directory, so the process runs from `vendor/RoboTwin` once it enters this seam. Callers resolve
+    directory, so the process runs from the repository root once it enters this seam. Callers resolve
     their own paths (run directories, checkpoints) to absolute before calling in.
     """
     if not (ROBOTWIN_ROOT / "envs" / "_base_task.py").is_file():
         raise RoboTwinError(
-            f"no RoboTwin checkout at {ROBOTWIN_ROOT}; run "
-            "`git submodule update --init --recursive`"
+            f"no RoboTwin checkout at {ROBOTWIN_ROOT}: robotwin_icil must run from icil/ inside "
+            "the RoboTwin fork it ships with"
         )
     use_env_render_manifests()
     use_supported_denoiser()
@@ -444,7 +449,7 @@ def robot_state(env) -> dict[str, Any]:
     from numpy's global RNG, the light colours `_update_render` redraws when a config turns on
     `crazy_random_light`, is made here too, in the same place, so the expert sees the same stream.
 
-    How that was checked, at `vendor/RoboTwin` 96c1feab: a grep of `envs/` for `get_obs`, `now_obs`,
+    How that was checked, at upstream RoboTwin 96c1feab: a grep of `envs/` for `get_obs`, `now_obs`,
     `get_rgb`, `cameras.`, `take_picture`, `_update_render` and `update_picture`, which hits no
     task file; and a walk of the AST from every task's `play_once` and `check_success` through the
     `Base_Task` and task methods they call. On those paths the only hits are the recording calls
@@ -478,7 +483,7 @@ def capture(
 
     RoboTwin drives recording from inside `take_dense_action`, which calls `_take_picture()` every
     `save_freq` control steps when `save_data` is set. Overriding the method on the instance keeps
-    the expert, its timing and the submodule untouched — the frames are simply kept rather than
+    the expert, its timing and the upstream files untouched — the frames are simply kept rather than
     written to a cache directory that would then be read back and deleted. With a running
     `clock`, each frame carries the simulated time it was taken at.
 
@@ -536,7 +541,7 @@ def clock(env) -> Iterator[Clock]:
     last, and `together_move_to_pose` steps and records in a loop of its own. Counting
     `scene.step()` itself sees all of them. `Engine.create_scene()` returns SAPIEN's Python
     `Scene` wrapper, whose `step` is a plain method, so an instance attribute shadows it without
-    touching the submodule, and deleting that attribute restores the class's method.
+    touching upstream code, and deleting that attribute restores the class's method.
 
     Install it after `setup_demo` and the fingerprint, so RoboTwin's stability settle is not
     counted, and leave the block before `close`. The shadow is removed even when the block

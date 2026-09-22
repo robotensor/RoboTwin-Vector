@@ -25,7 +25,7 @@ from . import catalogue as catalogue_
 from . import commands, prompts, units
 
 #: This distribution's version, as its pyproject.toml gives it.
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 BENCHMARK_ID = "robotwin"
 #: The orchestrator ABI this plugin was written against (`BENCHMARK_API_VERSION`).
 API_VERSION = 1
@@ -40,14 +40,15 @@ ACTION_TYPES = ("qpos", "ee")
 
 
 def robotwin_commit(repo_root: Path = REPO_ROOT) -> str | None:
-    """The RoboTwin commit the benchmark pins: its submodule's gitlink, readable without the
-    submodule checked out. None unless `repo_root` is the top of a checkout: a wheel installed
-    inside some other repository must not report that repository's gitlink."""
+    """The RoboTwin commit the benchmark runs. The benchmark lives inside its RoboTwin fork
+    (`icil/` at the fork's root), so this is the repository's own HEAD. None unless `repo_root` is
+    the top of a checkout: a wheel installed inside some other repository must not report that
+    repository's commit."""
     if not is_checkout_top(repo_root):
         return None
     try:
         done = subprocess.run(
-            ["git", "-C", str(repo_root), "rev-parse", "HEAD:vendor/RoboTwin"],
+            ["git", "-C", str(repo_root), "rev-parse", "HEAD"],
             capture_output=True,
             text=True,
             check=True,
