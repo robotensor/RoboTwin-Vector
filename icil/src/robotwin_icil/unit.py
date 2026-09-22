@@ -5,7 +5,9 @@ from its seed (CuRobo's IK seeds live for the env's lifetime, and planning retri
 clock), so the demonstration is built once and saved, and every evaluation reads the file:
 
     materialize   build the scene for one seed, run the expert once, and write
-                  prompt.npz, demonstration.mp4 and result.json
+                  prompt.npz, demonstration.mp4 and result.json; in the cross-scene setting,
+                  also verify with the expert that a second, evaluation scene is solvable, and
+                  make that scene the unit's
     run_unit      read prompt.npz, rebuild the scene from its meta, check the live fingerprint
                   against the recorded one, roll the policy out, and write result.json and
                   evaluation.mp4
@@ -20,6 +22,7 @@ the `Demonstration` and nothing else.
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import json
 import os
@@ -37,7 +40,7 @@ from .demo import Demonstration
 from .episode import evaluate
 from .policy import ICILPolicy, Unscorable
 from .prompt import PROMPT_FILE, PROMPT_SCHEMA, PromptError, read_prompt, sha256_of, write_prompt
-from .records import SAME_SCENE, git_commit
+from .records import CROSS_SCENE_LEVEL, SAME_SCENE, git_commit
 from .scene import SceneFingerprint, deviation, digest
 from .video import DEMONSTRATION_CLIP, EpisodeVideo
 
@@ -135,6 +138,8 @@ def materialize(
     config,
     out_dir: str | Path,
     *,
+    eval_seeds: int | Sequence[int] | None = None,
+    legal_joints: bool = False,
     task_env=None,
     video: bool = True,
 ) -> Materialized:
@@ -146,40 +151,87 @@ def materialize(
     legitimate outcomes, not errors: the result and the prompt's `meta` record every attempt, and
     when all of them are rejected `result.json` says why and no prompt is written.
 
+    With `eval_seeds` the unit is **cross-scene** (`CROSS_SCENE_LEVEL`): `scene_seeds` are the
+    demonstration's candidates, and `eval_seeds` the evaluation scene's, tried in order the same
+    way but without rendering a camera (`generate.attempt(images=False)`): an evaluation scene
+    only has to be one the expert solves. The first one that is becomes the unit's scene —
+    `meta.scene_seed`, and the fingerprint `run_unit` rebuilds and checks — while the prompt holds
+    the demonstration recorded in the other scene. The two candidate lists may not share a seed.
+    `legal_joints` rejects any expert run whose planned joints leave their legal range, on both
+    lists (`generate.attempt`).
+
     The result carries what the orchestrator's `read_result` reads from either command —
     `success`, `void`, `void_cause`, `steps`, `error` — next to `ok`: a written prompt is a
-    success whose `steps` are the demonstration's actions and whose `scene_seed` is the candidate
-    it was built from; every candidate rejected is void with `void_cause` "harness" (the expert
-    failed, not a policy), `scene_seed` None and the rejections as its `error`. A simulator that
-    cannot build any scene raises `RoboTwinError`, as `generate` does, and a candidate list it
-    must not try raises `UnitError`. Stale files from an earlier command in the same directory
-    are removed first, so what the directory holds afterwards is this call's.
+    success whose `steps` are the demonstration's actions and whose `scene_seed` is the scene the
+    unit is evaluated in; every candidate of either list rejected is void with `void_cause`
+    "harness" (the expert failed, not a policy), `scene_seed` None and the rejections as its
+    `error`. A simulator that cannot build any scene raises `RoboTwinError`, as `generate` does,
+    and a candidate list it must not try raises `UnitError`. Stale files from an earlier command
+    in the same directory are removed first, so what the directory holds afterwards is this
+    call's.
     """
     from . import robotwin
 
     started = time.monotonic()
     out = clear_outputs(out_dir, MATERIALIZE_OUTPUTS)
     candidates = candidate_seeds(scene_seeds)
+    eval_candidates = candidate_seeds(eval_seeds) if eval_seeds is not None else None
+    if eval_candidates is not None:
+        shared = sorted(set(candidates) & set(eval_candidates))
+        if shared:
+            raise UnitError(
+                f"seed {', '.join(map(str, shared))} is both a demonstration and an evaluation "
+                "candidate; a cross-scene unit needs two different scenes"
+            )
+    setting = SAME_SCENE if eval_candidates is None else CROSS_SCENE_LEVEL
 
     args = config.resolve(task)
     embodiment = str(args["embodiment_name"])
+    level = args.get("level")
     task_env = task_env if task_env is not None else robotwin.load_task(task)
+    demo_attempt = functools.partial(generate.attempt, legal_joints=legal_joints)
+    verify_attempt = functools.partial(generate.attempt, images=False, legal_joints=legal_joints)
     try:
         generated = generate.generate(
-            task_env, candidates, lambda: config.resolve(task), config.save_freq, 0
+            task_env,
+            candidates,
+            lambda: config.resolve(task),
+            config.save_freq,
+            0,
+            attempt_fn=demo_attempt,
         )
+        verified = None
+        if generated.ok and eval_candidates is not None:
+            verified = generate.generate(
+                task_env,
+                eval_candidates,
+                lambda: config.resolve(task),
+                config.save_freq,
+                0,
+                attempt_fn=verify_attempt,
+            )
     finally:
         robotwin.free_gpu()
     attempts = attempts_json(generated)
     rejections = _rejection_counts(generated)
+    eval_fields: dict[str, Any] = {}
+    if eval_candidates is not None:
+        eval_fields = {
+            "eval_seeds": eval_candidates,
+            "eval_attempts": attempts_json(verified) if verified is not None else [],
+            "eval_rejections": _rejection_counts(verified) if verified is not None else {},
+        }
 
     def finish(**fields: Any) -> dict[str, Any]:
         result = {
             "task": task,
             "scene_seeds": candidates,
             "embodiment": embodiment,
+            "evaluation_setting": setting,
+            "level": level,
             "attempts": attempts,
             "rejections": rejections,
+            **eval_fields,
             **fields,
             "source_sha256": source_sha256(),
             "duration_s": round(time.monotonic() - started, 3),
@@ -187,19 +239,20 @@ def materialize(
         _write_json(out / RESULT_FILE, result)
         return result
 
-    demonstration, initial = generated.demonstration, generated.initial
-    if demonstration is None or initial is None:
-        last = generated.attempts[-1]
+    def rejected(which: str, gen: generate.Generated) -> Materialized:
+        last = gen.attempts[-1]
         assert last.rejection is not None
-        if len(generated.attempts) == 1:
-            error = f"expert rejected the seed: {_why(last)}"
+        label = f"{which} " if which else ""
+        if len(gen.attempts) == 1:
+            error = f"expert rejected the {label}seed: {_why(last)}"
         else:
-            error = f"expert rejected all {len(generated.attempts)} candidate seeds: " + "; ".join(
-                f"seed {attempt.seed}: {_why(attempt)}" for attempt in generated.attempts
+            error = f"expert rejected all {len(gen.attempts)} {label}candidate seeds: " + "; ".join(
+                f"seed {attempt.seed}: {_why(attempt)}" for attempt in gen.attempts
             )
         result = finish(
             ok=False,
             scene_seed=None,
+            demo_seed=generated.seed,
             success=None,
             void=True,
             void_cause="harness",
@@ -210,16 +263,48 @@ def materialize(
         )
         return Materialized(ok=False, generated=generated, result=result)
 
+    demonstration, demo_initial = generated.demonstration, generated.initial
+    if demonstration is None or demo_initial is None:
+        return rejected("demonstration" if eval_candidates is not None else "", generated)
     assert generated.seed is not None
     expert = {"scene_seeds": candidates, "attempts": attempts, "rejections": rejections}
-    meta = build_meta(task, generated.seed, config, args, demonstration, initial, expert)
+
+    if verified is None:
+        scene_seed, initial, demo_scene = generated.seed, demo_initial, None
+    else:
+        if verified.initial is None or verified.seed is None:
+            return rejected("evaluation", verified)
+        scene_seed, initial = verified.seed, verified.initial
+        demo_scene = {
+            "seed": int(generated.seed),
+            "sha256": digest(demo_initial),
+            "expert": expert,
+        }
+        expert = {
+            "scene_seeds": eval_candidates,
+            "attempts": eval_fields["eval_attempts"],
+            "rejections": eval_fields["eval_rejections"],
+        }
+
+    meta = build_meta(
+        task,
+        scene_seed,
+        config,
+        args,
+        demonstration,
+        initial,
+        expert,
+        evaluation_setting=setting,
+        demonstration_scene=demo_scene,
+    )
     prompt_sha256 = write_prompt(out / PROMPT_FILE, demonstration, meta)
     note = ""
     if video:
         note = _film(lambda: EpisodeVideo(out).demonstration(demonstration))
     result = finish(
         ok=True,
-        scene_seed=generated.seed,
+        scene_seed=scene_seed,
+        demo_seed=generated.seed,
         success=True,
         void=False,
         void_cause=None,
@@ -229,6 +314,7 @@ def materialize(
         cameras=list(demonstration.cameras),
         prompt_sha256=prompt_sha256,
         scene_sha256=meta["scene"]["sha256"],
+        demo_scene_sha256=demo_scene["sha256"] if demo_scene is not None else None,
         video=DEMONSTRATION_CLIP if (out / DEMONSTRATION_CLIP).is_file() else None,
         detail=note.strip(),
     )
@@ -253,18 +339,26 @@ def build_meta(
     demonstration: Demonstration,
     initial: SceneFingerprint,
     expert: dict[str, Any] | None = None,
+    *,
+    evaluation_setting: str = SAME_SCENE,
+    demonstration_scene: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """The privileged `meta` of a prompt: enough to rebuild its scene and to prove it is the same.
 
     `config` and `args` are the `SceneConfig` the scene was built with and what it resolved to;
-    `initial` is the fingerprint taken before the expert acted. `expert` is how the seed was
-    found — the candidates, every attempt and the rejections — and defaults to the one seed given.
+    `initial` is the fingerprint of the scene the unit is evaluated in, taken before the expert
+    acted. `expert` is how that seed was found — the candidates, every attempt and the rejections
+    — and defaults to the one seed given. In the cross-scene setting `demonstration_scene` is
+    where the demonstration was recorded instead: its seed, its scene digest and its expert's
+    attempts; `scene_seed` and `scene` are always the evaluation scene's.
     """
     from . import robotwin
 
     return {
         "schema": PROMPT_SCHEMA,
-        "evaluation_setting": SAME_SCENE,
+        "evaluation_setting": evaluation_setting,
+        "level": args.get("level"),
+        "demonstration_scene": demonstration_scene,
         "task": task,
         "scene_seed": int(scene_seed),
         # `choice` is how the robot was picked — an `EMBODIMENTS` name, or None for the task
@@ -440,7 +534,9 @@ def run_unit(
         "embodiment": None,
         "task": None,
         "scene_seed": None,
+        "demo_seed": None,
         "evaluation_setting": SAME_SCENE,
+        "level": None,
         "prompt_sha256": None,
         "scene_sha256": None,
         "live_scene_sha256": None,
@@ -471,9 +567,13 @@ def run_unit(
     except PromptError as exc:
         return void(f"unreadable prompt: {exc}")
     embodiment = meta.get("embodiment")
+    demo_scene = meta.get("demonstration_scene")
     result.update(
         task=meta.get("task"),
         scene_seed=meta.get("scene_seed"),
+        demo_seed=demo_scene.get("seed") if isinstance(demo_scene, dict) else None,
+        evaluation_setting=meta.get("evaluation_setting", SAME_SCENE),
+        level=meta.get("level"),
         embodiment=embodiment.get("name") if isinstance(embodiment, dict) else None,
         prompt_sha256=sha256_of(prompt_path),
     )

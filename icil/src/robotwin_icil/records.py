@@ -21,6 +21,10 @@ from typing import Any
 from .arms import ONE, TWO
 
 SAME_SCENE = "same_scene"
+#: The demonstration comes from one scene and the rollout is scored in another, both drawn at the
+#: task config's difficulty `level` (the fork's `envs/_levels.py`): the Vector competition's setting.
+CROSS_SCENE_LEVEL = "cross_scene_level"
+EVALUATION_SETTINGS = (SAME_SCENE, CROSS_SCENE_LEVEL)
 
 MANIFEST = "manifest.json"
 EPISODES = "episodes.jsonl"

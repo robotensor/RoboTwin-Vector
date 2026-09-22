@@ -184,7 +184,14 @@ def _materialize(args: argparse.Namespace) -> int:
     config = robotwin.SceneConfig(
         task_config=args.task_config, save_freq=args.save_freq, embodiment=args.embodiment
     )
-    done = materialize(task.name, args.scene_seeds, config, out)
+    done = materialize(
+        task.name,
+        args.scene_seeds,
+        config,
+        out,
+        eval_seeds=args.eval_seeds,
+        legal_joints=args.legal_joints,
+    )
     print(json.dumps(done.result, indent=2, sort_keys=True))
     # A rejected seed is a result, written to result.json like a prompt; only a harness error
     # exits 1, and then no result.json holds a reason the caller would read past a non-zero exit.
@@ -377,6 +384,23 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
         metavar="SEED",
         help="a candidate scene; repeat it to give more, tried in order until the expert solves one",
+    )
+    mat.add_argument(
+        "--eval-seed",
+        dest="eval_seeds",
+        type=int,
+        action="append",
+        default=None,
+        metavar="SEED",
+        help="a candidate evaluation scene, which makes the unit cross-scene: the demonstration is "
+        "recorded on a --scene-seed and the unit is evaluated on the first --eval-seed the expert "
+        "solves (verified without rendering); repeat it to give more",
+    )
+    mat.add_argument(
+        "--legal-joints",
+        action="store_true",
+        help="also reject an expert run whose planned arm joints leave their legal range, as "
+        "RoboTwin's collector does",
     )
     mat.add_argument("--out", required=True, help="directory the three files are written into")
     mat.add_argument(

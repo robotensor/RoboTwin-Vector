@@ -35,6 +35,9 @@ class Rejection(str, enum.Enum):
     EXPERT_FAILED = "expert_failed"
     EXPERT_ERROR = "expert_error"
     NO_DEMONSTRATION = "no_demonstration"
+    # The expert succeeded, but along a planned path that took an arm joint outside its legal
+    # range (`Base_Task.planned_joints_legal`). Checked only when asked (`legal_joints`).
+    ILLEGAL_JOINTS = "illegal_joints"
 
 
 @dataclass(frozen=True)
@@ -80,12 +83,21 @@ def robotwin_seeds(global_seed: int, tried: int, count: int) -> list[int]:
 
 
 def attempt(
-    task_env, seed: int, args: dict, save_freq: int, episode: int, images: bool = True
+    task_env,
+    seed: int,
+    args: dict,
+    save_freq: int,
+    episode: int,
+    images: bool = True,
+    legal_joints: bool = False,
 ) -> tuple[Attempt, Demonstration | None, SceneFingerprint | None]:
     """Build the scene for one seed, run the expert once, and keep what it did if it succeeded.
 
     `images=False` records the demonstration without rendering a camera (`robotwin.capture`): the
     same joints, frames and outcome, fit for measuring the expert but not for a policy's context.
+    `legal_joints` also rejects a success whose planned arm joints left their legal range, as
+    upstream RoboTwin does; the check reads the planner's joint
+    paths, which the harness records because it plans (`need_plan`).
     """
     from . import robotwin
 
@@ -117,6 +129,18 @@ def attempt(
             return Attempt(seed, Rejection.PLAN_FAILED), None, None
         if not task_env.check_success():
             return Attempt(seed, Rejection.EXPERT_FAILED), None, None
+        if legal_joints:
+            joints_ok, excess = task_env.planned_joints_legal()
+            if not joints_ok:
+                return (
+                    Attempt(
+                        seed,
+                        Rejection.ILLEGAL_JOINTS,
+                        f"planned joints exceed limits by {excess:.3f} rad",
+                    ),
+                    None,
+                    None,
+                )
         try:
             demonstration = robotwin.demonstration_from(
                 frames, robotwin.frame_rate_hz(task_env, save_freq)
