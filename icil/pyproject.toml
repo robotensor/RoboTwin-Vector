@@ -1,0 +1,54 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "robotwin-icil"
+version = "0.1.0"
+description = "RoboTwin-ICIL: one-demonstration in-context imitation learning benchmark on RoboTwin 2.0."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+dependencies = [
+  "numpy>=1.24,<2",
+  "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+video = ["imageio-ffmpeg>=0.5"]
+dev = ["pytest>=8", "pytest-cov", "ruff==0.16.7", "imageio-ffmpeg>=0.5", "h5py>=3.10", "Pillow>=10", "huggingface-hub>=0.34,<2"]
+
+[project.urls]
+Repository = "https://github.com/robotensor/RoboTwin-ICIL"
+Issues = "https://github.com/robotensor/RoboTwin-ICIL/issues"
+
+[project.scripts]
+robotwin-icil = "robotwin_icil.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/robotwin_icil"]
+
+[tool.hatch.build.targets.sdist]
+# Simulation needs a recursive Git checkout; upstream includes absolute symlinks
+# and is not part of this Python distribution.
+only-include = [
+  "src/robotwin_icil", "tests", "scripts", "docs",
+  "README.md", "CITATION.cff", "LICENSE", "pyproject.toml",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests", "competition/src", "competition/tests"]
+extend-exclude = ["vendor"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "W"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+  "sim: needs the RoboTwin simulator (SAPIEN, assets, GPU)",
+  "slow: takes minutes",
+]
