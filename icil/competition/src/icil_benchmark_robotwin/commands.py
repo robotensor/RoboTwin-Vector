@@ -20,15 +20,18 @@ import robotwin_icil
 from robotwin_icil import tasks
 from robotwin_icil.robotwin import DENOISER_ENV, DENOISERS, EMBODIMENTS
 
+from . import catalogue
+
 #: The environment variable naming the simulator environment's interpreter.
 PYTHON_ENV = "ROBOTWIN_ICIL_PYTHON"
 #: Where `scripts/install_robotwin.sh` puts it.
 DEFAULT_PYTHON = "/root/miniforge3/envs/robotwin/bin/python"
 CLI_MODULE = "robotwin_icil.cli"
 
-#: RoboTwin's task config and frame spacing every unit is materialized with, written into the argv
+#: RoboTwin's task config and frame spacing a unit is materialized with, written into the argv
 #: rather than left to the command's defaults, so a changed default cannot change a unit.
-TASK_CONFIG = "demo_clean"
+#: `TASK_CONFIG` is `franka_1arm`'s; every suite's is its profile's (`catalogue.PROFILES`).
+TASK_CONFIG = catalogue.PROFILES[catalogue.FRANKA_1ARM].task_config
 SAVE_FREQ = 15
 
 #: The time limits `run_command` reads from the orchestrator's `extra`, and the run-unit flag each
@@ -48,21 +51,37 @@ def simulator_python() -> str:
     return os.environ.get(PYTHON_ENV) or DEFAULT_PYTHON
 
 
+def suite_profile(unit: Mapping[str, Any]) -> catalogue.SuiteProfile:
+    """The profile of the suite a unit was drawn from; a unit that names none is `franka_1arm`'s,
+    the only suite there was before units named theirs."""
+    return catalogue.profile(str(unit.get("suite") or catalogue.FRANKA_1ARM))
+
+
 def materialize_command(*, unit: Mapping[str, Any], out_dir: str) -> list[str]:
-    """`materialize` for `unit`: its task on its robot, every candidate seed in order, into
-    `out_dir`."""
+    """`materialize` for `unit`: its task on its robot, under its suite's task config, every
+    candidate seed in order, into `out_dir`. A cross-scene unit records its demonstration on its
+    `demo_seeds` (`--scene-seed`) and is scored on its `scene_seeds` (`--eval-seed`)."""
     task, embodiment, seeds = _unit(unit)
+    profile = suite_profile(unit)
     argv = [simulator_python(), "-m", CLI_MODULE, "materialize", "--task", task]
     argv += [
         "--embodiment",
         embodiment,
         "--task-config",
-        TASK_CONFIG,
+        profile.task_config,
         "--save-freq",
         str(SAVE_FREQ),
     ]
-    for seed in seeds:
-        argv += ["--scene-seed", str(seed)]
+    if profile.cross_scene:
+        for seed in _seeds(unit["instance_params"].get("demo_seeds"), "demo_seeds"):
+            argv += ["--scene-seed", str(seed)]
+        for seed in seeds:
+            argv += ["--eval-seed", str(seed)]
+    else:
+        for seed in seeds:
+            argv += ["--scene-seed", str(seed)]
+    if profile.legal_joints:
+        argv.append("--legal-joints")
     return [*argv, *_denoiser(), *_expect_source(), "--out", os.path.abspath(out_dir)]
 
 
@@ -126,15 +145,29 @@ def _unit(unit: Mapping[str, Any]) -> tuple[str, str, list[int]]:
     embodiment = params.get("embodiment")
     if embodiment not in EMBODIMENTS:
         raise ValueError(f"unit embodiment {embodiment!r} is not one of {sorted(EMBODIMENTS)}")
-    seeds = params.get("scene_seeds")
+    seeds = _seeds(params.get("scene_seeds"), "scene_seeds")
+    profile = suite_profile(unit)
+    if unit.get("suite") and embodiment != profile.embodiment:
+        raise ValueError(
+            f"unit embodiment {embodiment!r} is not its suite's {profile.embodiment!r}"
+        )
+    if profile.cross_scene:
+        demo = _seeds(params.get("demo_seeds"), "demo_seeds")
+        if set(demo) & set(seeds):
+            raise ValueError("unit demo_seeds and scene_seeds share a seed")
+    return task, str(embodiment), seeds
+
+
+def _seeds(seeds: Any, name: str) -> list[int]:
+    """A unit's candidate list, or `ValueError` naming it."""
     if (
         not isinstance(seeds, list)
         or not seeds
         or any(isinstance(s, bool) or not isinstance(s, int) or not 0 <= s < 2**32 for s in seeds)
         or len(set(seeds)) != len(seeds)
     ):
-        raise ValueError(f"unit scene_seeds {seeds!r} are not distinct integers in [0, 2**32)")
-    return task, str(embodiment), list(seeds)
+        raise ValueError(f"unit {name} {seeds!r} are not distinct integers in [0, 2**32)")
+    return list(seeds)
 
 
 def _seconds(key: str, value: Any) -> str:

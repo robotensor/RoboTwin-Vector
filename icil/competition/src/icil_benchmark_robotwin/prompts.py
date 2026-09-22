@@ -19,7 +19,7 @@ from robotwin_icil import prompt as prompt_
 from robotwin_icil.records import SAME_SCENE
 from robotwin_icil.scene import SceneFingerprint, digest
 
-from . import commands
+from . import catalogue, commands
 
 #: The files the two commands write, as `robotwin_icil.unit` names them.
 PROMPT_FILE = prompt_.PROMPT_FILE
@@ -37,15 +37,22 @@ VOID_CAUSES = ("harness", "policy")
 #: `envs/camera/camera.py` names them. A prompt and an observation hold `frames_<camera>` of each.
 CAMERAS = ("head_camera", "left_camera", "right_camera")
 
-#: The scene config every unit is materialized with, as a prompt's `meta` records it: the argv's
-#: task config and frame spacing, no head camera or override, the Same Scene setting.
-SCENE_CONFIG: dict[str, Any] = {
-    "task_config": commands.TASK_CONFIG,
-    "save_freq": commands.SAVE_FREQ,
-    "head_camera": None,
-    "overrides": {},
-    "evaluation_setting": SAME_SCENE,
-}
+
+def scene_config(profile: catalogue.SuiteProfile) -> dict[str, Any]:
+    """The scene config a suite's units are materialized with, as a prompt's `meta` records it:
+    the argv's task config and frame spacing, no head camera or override, the suite's setting."""
+    return {
+        "task_config": profile.task_config,
+        "save_freq": commands.SAVE_FREQ,
+        "head_camera": None,
+        "overrides": {},
+        "evaluation_setting": profile.evaluation_setting,
+    }
+
+
+#: `franka_1arm`'s scene config, the Same Scene one.
+SCENE_CONFIG: dict[str, Any] = scene_config(catalogue.PROFILES[catalogue.FRANKA_1ARM])
+assert SCENE_CONFIG["evaluation_setting"] == SAME_SCENE
 
 
 def sha256_of(path: Path) -> str:
@@ -145,6 +152,16 @@ def verify_prompt(*, path: str, unit: Mapping[str, Any]) -> dict[str, Any]:
     else:
         problems.extend(expert_problems(meta.get("expert"), seed, candidates))
 
+    try:
+        profile = commands.suite_profile(unit)
+    except ValueError as exc:
+        problems.append(str(exc))
+        profile = catalogue.PROFILES[catalogue.FRANKA_1ARM]
+    if profile.cross_scene:
+        problems.extend(_demonstration_problems(meta, params, seed, profile))
+    elif meta.get("demonstration_scene") is not None:
+        problems.append("a Same Scene prompt names a demonstration scene of its own")
+
     wanted = params.get("embodiment")
     name, choice = embodiment.get("name"), embodiment.get("choice")
     if name != wanted or choice != wanted:
@@ -154,7 +171,7 @@ def verify_prompt(*, path: str, unit: Mapping[str, Any]) -> dict[str, Any]:
 
     # run-unit rebuilds and scores the scene from exactly these, so a prompt built under another
     # config is another unit however its task, seed and robot read.
-    for key, value in SCENE_CONFIG.items():
+    for key, value in scene_config(profile).items():
         if key not in meta or meta[key] != value or type(meta[key]) is not type(value):
             problems.append(
                 f"the prompt's {key} is {meta.get(key)!r}; every unit is built with {value!r}"
@@ -201,6 +218,44 @@ def verify_prompt(*, path: str, unit: Mapping[str, Any]) -> dict[str, Any]:
     except (KeyError, TypeError, ValueError) as exc:
         problems.append(f"meta has no readable scene fingerprint: {type(exc).__name__}: {exc}")
     return verdict(sha256)
+
+
+def _demonstration_problems(
+    meta: Mapping[str, Any],
+    params: Mapping[str, Any],
+    scene_seed: Any,
+    profile: catalogue.SuiteProfile,
+) -> list[str]:
+    """What is wrong with a cross-scene prompt's demonstration scene for its unit: it must be one
+    of the unit's `demo_seeds`, found by trying them in order (`expert_problems`), never the scene
+    the unit is scored in, at the suite's level."""
+    problems = []
+    if meta.get("level") != profile.level:
+        problems.append(
+            f"the prompt is of level {meta.get('level')!r}; the suite's is {profile.level}"
+        )
+    scene = meta.get("demonstration_scene")
+    candidates = params.get("demo_seeds")
+    if not isinstance(scene, Mapping):
+        return [*problems, "a cross-scene prompt names no demonstration scene"]
+    seed = scene.get("seed")
+    if not isinstance(candidates, list) or not candidates:
+        problems.append("the unit names no candidate demo_seeds")
+    elif isinstance(seed, bool) or not isinstance(seed, int) or seed not in candidates:
+        problems.append(
+            f"the prompt's demonstration seed {seed!r} is not one of the unit's demo_seeds "
+            f"{candidates}"
+        )
+    else:
+        problems.extend(
+            f"demonstration: {problem}"
+            for problem in expert_problems(scene.get("expert"), seed, candidates)
+        )
+    if seed == scene_seed:
+        problems.append("the demonstration was recorded in the scene the unit is scored in")
+    if not isinstance(scene.get("sha256"), str) or not scene.get("sha256"):
+        problems.append("the demonstration scene has no digest")
+    return problems
 
 
 def read_result(*, out_dir: str) -> dict[str, Any]:

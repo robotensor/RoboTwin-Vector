@@ -118,7 +118,8 @@ def test_the_catalogue_has_the_shape_the_orchestrator_reads_and_the_spec_needs()
     assert isinstance(shown["suites"], dict) and all(
         isinstance(v, list) for v in shown["suites"].values()
     )
-    assert list(shown["suites"]) == [SPEC_SUITE]
+    # The one-arm Franka track's suite, then the Vector competition's.
+    assert list(shown["suites"]) == [SPEC_SUITE, "vector_level1"]
     assert set(SPEC_CATEGORIES) <= set(shown["categories"])
     table = tasks.table()
     assert set(shown["tasks"]) == set(table.tasks)

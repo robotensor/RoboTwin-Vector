@@ -100,6 +100,11 @@ class RoboTwinBenchmark:
             "prefix_channels": list(prompt_.PREFIX_CHANNELS),
             "metadata": list(prompt_.METADATA),
             "task_config": commands.TASK_CONFIG,
+            # How each suite's units are built: robot, task config, setting, seed range,
+            # derivation label and whether the expert must plan inside the joint limits.
+            "suite_profiles": {
+                name: profile.to_json() for name, profile in catalogue_.PROFILES.items()
+            },
             "save_freq": commands.SAVE_FREQ,
             "scene_seed_candidates": units.SCENE_SEED_CANDIDATES,
             # What units are drawn from, and what it was when the derivation was pinned: a

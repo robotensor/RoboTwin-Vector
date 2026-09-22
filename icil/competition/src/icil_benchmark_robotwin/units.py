@@ -31,21 +31,23 @@ SEED_BOUND = 2**31 - 1
 #: Hashed ahead of the seed material, so these draws are this derivation's and no other's. A change
 #: to how units are drawn changes this label, and with it every unit. units/1 drew `franka_1arm`
 #: from a provisional suite derived from each task's arms; units/2 draws it from the suite the
-#: Franka survey named, so a unit list recorded under one label never reads as the other's.
-DERIVATION = "robotwin-icil-competition/units/2"
+#: Franka survey named, so a unit list recorded under one label never reads as the other's. Each
+#: suite has a label of its own (`catalogue.PROFILES`), so adding a suite moves no other suite's
+#: units; this is `franka_1arm`'s.
+DERIVATION = catalogue.PROFILES[catalogue.FRANKA_1ARM].derivation
 
 #: What `catalogue_sha256` gave when the derivation was pinned. The orchestrator pins this plugin
 #: by its wheel's sha256, but each task's category and arms are robotwin-icil's: another table
 #: would derive other units under the same pin, so `derive_units` refuses one. A change to the
 #: catalogue that is meant updates this, with `DERIVATION` and the pinned test if units change.
-CATALOGUE_SHA256 = "40390e0351e23b9d909a3f180e83d4405b4dd055662e4ce660bf86deb2a22f74"
+CATALOGUE_SHA256 = "3e9f05023783dddcd7372ff3862172006551608d2c580f387974bc3e82bf4e02"
 
 
 class Sha256Counter:
     """Integers from sha256(label | material | counter), the counter counting up from 0."""
 
-    def __init__(self, material: str) -> None:
-        self._prefix = f"{DERIVATION}|{material}|".encode()
+    def __init__(self, material: str, label: str = DERIVATION) -> None:
+        self._prefix = f"{label}|{material}|".encode()
         self._counter = 0
 
     def next_u64(self) -> int:
@@ -115,6 +117,11 @@ def derive_units(
     are tried; `embodiment`, the robot; and `scene_seed`, None, because which candidate becomes
     the unit's scene is known only once materialize has run (its `result.json` and the prompt's
     `meta` name it).
+
+    Draws are hashed under the suite's own label and taken from its seed range
+    (`catalogue.PROFILES`). A cross-scene suite's unit also carries `demo_seeds`, the candidates
+    its demonstration is recorded on, drawn after its `scene_seeds` and disjoint from them, and
+    its `task_config` and `level`: `scene_seeds` stay the scenes the unit is scored in.
     """
     if not isinstance(seed_material, str):
         raise TypeError(f"seed_material must be a string, not {type(seed_material).__name__}")
@@ -129,8 +136,18 @@ def derive_units(
         )
     members = suite_tasks(table, suite, category)
     embodiment = catalogue.embodiment_of(suite)
+    profile = catalogue.profile(suite)
+    span = profile.seed_high - profile.seed_low
 
-    draws = Sha256Counter(seed_material)
+    def seed_list(taken: list[int]) -> list[int]:
+        seeds: list[int] = []
+        while len(seeds) < SCENE_SEED_CANDIDATES:
+            seed = profile.seed_low + draws.below(span)
+            if seed not in seeds and seed not in taken:
+                seeds.append(seed)
+        return seeds
+
+    draws = Sha256Counter(seed_material, profile.derivation)
     order = list(members)
     for i in range(len(order) - 1, 0, -1):  # Fisher-Yates, on sha256 draws
         j = draws.below(i + 1)
@@ -139,22 +156,23 @@ def derive_units(
     units = []
     for index in range(count):
         name = order[index % len(order)]
-        seeds: list[int] = []
-        while len(seeds) < SCENE_SEED_CANDIDATES:
-            seed = draws.below(SEED_BOUND)
-            if seed not in seeds:
-                seeds.append(seed)
+        seeds = seed_list([])
+        params: dict[str, Any] = {
+            "scene_seed": None,
+            "scene_seeds": seeds,
+            "embodiment": embodiment,
+        }
+        if profile.cross_scene:
+            params["demo_seeds"] = seed_list(seeds)
+            params["task_config"] = profile.task_config
+            params["level"] = profile.level
         units.append(
             {
                 "task": name,
                 "task_label": catalogue.task_label(name),
                 "suite": suite,
                 "category": table[name].category,
-                "instance_params": {
-                    "scene_seed": None,
-                    "scene_seeds": seeds,
-                    "embodiment": embodiment,
-                },
+                "instance_params": params,
             }
         )
     return units
