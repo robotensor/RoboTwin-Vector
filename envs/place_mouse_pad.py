@@ -29,7 +29,7 @@ class place_mouse_pad(Base_Task):
                 rotate_lim=[0, np.pi / 4, 0],
             )
 
-        self.mouse_id = np.random.choice([0, 1, 2], 1)[0]
+        self.mouse_id = self.lvl.pick("model_id", np.random.choice([0, 1, 2], 1)[0], 0, name="mouse")
         self.mouse = create_actor(
             scene=self,
             pose=rand_pos,
@@ -69,10 +69,16 @@ class place_mouse_pad(Base_Task):
         }
 
         color_items = list(colors.items())
-        color_index = np.random.choice(len(color_items))
-        self.color_name, self.color_value = color_items[color_index]
+        self.color_name, self.color_value = self.lvl.pick(
+            "object_color", color_items[np.random.choice(len(color_items))], ("Red", colors["Red"]), name="pad")
 
-        half_size = [0.035, 0.065, 0.0005]
+        default_half_size = [0.035, 0.065, 0.0005]
+        half_size = self.level_box_size(default_half_size, name="pad")
+        target_rand_pose.set_p([
+            target_rand_pose.p[0],
+            target_rand_pose.p[1],
+            self.level_box_z(target_rand_pose.p[2], half_size, default_half_size),
+        ])
         self.target = create_box(
             scene=self,
             pose=target_rand_pose,

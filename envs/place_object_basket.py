@@ -10,15 +10,18 @@ class place_object_basket(Base_Task):
         super()._init_task_env_(**kwags)
 
     def load_actors(self):
-        self.arm_tag = ArmTag({0: "left", 1: "right"}[np.random.randint(0, 2)])
+        self.arm_tag = ArmTag({0: "left", 1: "right"}[
+            self.lvl.pick("arm_choice", np.random.randint(0, 2), 0, name="arm")])
         self.basket_name = "110_basket"
-        self.basket_id = np.random.randint(0, 2)
+        self.basket_id = self.lvl.pick("model_id", np.random.randint(0, 2), 0, name="basket")
         toycar_dict = {
             "081_playingcards": [0, 1, 2],
             "057_toycar": [0, 1, 2, 3, 4, 5],
         }
-        self.object_name = ["081_playingcards", "057_toycar"][np.random.randint(0, 2)]
-        self.object_id = toycar_dict[self.object_name][np.random.randint(0, len(toycar_dict[self.object_name]))]
+        self.object_name = ["081_playingcards", "057_toycar"][
+            self.lvl.pick("object_category", np.random.randint(0, 2), 0, name="object")]
+        self.object_id = toycar_dict[self.object_name][self.lvl.pick(
+            "model_id", np.random.randint(0, len(toycar_dict[self.object_name])), 0, name="object")]
         if self.arm_tag == "left":  # toycar on left
             self.basket = rand_create_actor(
                 scene=self,

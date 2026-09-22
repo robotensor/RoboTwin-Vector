@@ -20,7 +20,7 @@ class place_cans_plasticbox(Base_Task):
             rotate_lim=[0, 0, 0],
         )
 
-        self.plasticbox_id = np.random.choice([3, 5], 1)[0]
+        self.plasticbox_id = self.lvl.pick("model_id", np.random.choice([3, 5], 1)[0], 3, name="plasticbox")
 
         self.plasticbox = create_actor(
             scene=self,
@@ -39,7 +39,7 @@ class place_cans_plasticbox(Base_Task):
             rotate_lim=[0, 0, 0],
         )
 
-        self.object1_id = np.random.choice([0, 1, 2, 3, 5, 6], 1)[0]
+        self.object1_id = self.lvl.pick("model_id", np.random.choice([0, 1, 2, 3, 5, 6], 1)[0], 0, name="can1")
 
         self.object1 = create_actor(
             scene=self,
@@ -58,7 +58,7 @@ class place_cans_plasticbox(Base_Task):
             rotate_lim=[0, 0, 0],
         )
 
-        self.object2_id = np.random.choice([0, 1, 2, 3, 5, 6], 1)[0]
+        self.object2_id = self.lvl.pick("model_id", np.random.choice([0, 1, 2, 3, 5, 6], 1)[0], 0, name="can2")
 
         self.object2 = create_actor(
             scene=self,

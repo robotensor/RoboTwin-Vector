@@ -10,16 +10,18 @@ class place_can_basket(Base_Task):
         super()._init_task_env_(**kwags)
 
     def load_actors(self):
-        self.arm_tag = ArmTag({0: "left", 1: "right"}[np.random.randint(0, 2)])
+        self.arm_tag = ArmTag({0: "left", 1: "right"}[
+            self.lvl.pick("arm_choice", np.random.randint(0, 2), 0, name="arm")])
 
         self.basket_name = "110_basket"
-        self.basket_id = [0, 1][np.random.randint(0, 2)]
+        self.basket_id = [0, 1][self.lvl.pick("model_id", np.random.randint(0, 2), 0, name="basket")]
 
         can_dict = {
             "071_can": [0, 1, 2, 3, 5, 6],
         }
         self.can_name = "071_can"
-        self.can_id = can_dict[self.can_name][np.random.randint(0, len(can_dict[self.can_name]))]
+        self.can_id = can_dict[self.can_name][
+            self.lvl.pick("model_id", np.random.randint(0, len(can_dict[self.can_name])), 0, name="can")]
 
         if self.arm_tag == "left":  # can on left
             self.basket = rand_create_actor(

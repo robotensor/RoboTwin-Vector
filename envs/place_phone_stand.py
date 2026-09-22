@@ -10,7 +10,7 @@ class place_phone_stand(Base_Task):
         super()._init_task_env_(**kwargs)
 
     def load_actors(self):
-        tag = np.random.randint(2)
+        tag = self.lvl.pick("arm_choice", np.random.randint(2), 0, name="side")
         ori_quat = [
             [0.707, 0.707, 0, 0],
             [0.5, 0.5, 0.5, 0.5],
@@ -25,7 +25,7 @@ class place_phone_stand(Base_Task):
             phone_x_lim = [0.05, 0.25]
             stand_x_lim = [0, 0.15]
 
-        self.phone_id = np.random.choice([0, 1, 2, 4], 1)[0]
+        self.phone_id = self.lvl.pick("model_id", np.random.choice([0, 1, 2, 4], 1)[0], 0, name="phone")
         phone_pose = rand_pose(
             xlim=phone_x_lim,
             ylim=[-0.2, 0.0],
@@ -56,7 +56,7 @@ class place_phone_stand(Base_Task):
                 rotate_rand=False,
             )
 
-        self.stand_id = np.random.choice([1, 2], 1)[0]
+        self.stand_id = self.lvl.pick("model_id", np.random.choice([1, 2], 1)[0], 1, name="stand")
         self.stand = create_actor(
             scene=self,
             pose=stand_pose,

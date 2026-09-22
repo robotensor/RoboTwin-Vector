@@ -23,8 +23,10 @@ class place_container_plate(Base_Task):
                 qpos=[0.5, 0.5, 0.5, 0.5],
             )
         id_list = {"002_bowl": [1, 2, 3, 5], "021_cup": [1, 2, 3, 4, 5, 6, 7]}
-        self.actor_name = np.random.choice(["002_bowl", "021_cup"])
-        self.container_id = np.random.choice(id_list[self.actor_name])
+        self.actor_name = self.lvl.pick("object_category", np.random.choice(["002_bowl", "021_cup"]),
+                                        "002_bowl", name="container")
+        self.container_id = self.lvl.pick("model_id", np.random.choice(id_list[self.actor_name]),
+                                          id_list[self.actor_name][0], name="container")
         self.container = create_actor(
             self,
             pose=container_pose,

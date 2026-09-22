@@ -16,6 +16,18 @@ from .planner import CuroboPlanner
 import torch.multiprocessing as mp
 
 
+class ReplayPlanner:
+    """Planner stand-in for replaying saved joint paths: gripper interpolation only (same as the planners')."""
+
+    def plan_grippers(self, now_val, target_val):
+        return MplibPlanner.plan_grippers(self, now_val, target_val)
+
+    def plan_path(self, *args, **kwargs):
+        raise RuntimeError("ReplayPlanner cannot plan: need_plan is false (use_seed replay)")
+
+    plan_batch = plan_path
+
+
 class Robot:
 
     def __init__(self, scene, need_topp=False, **kwargs):
@@ -124,7 +136,9 @@ class Robot:
     def reset(self, scene, need_topp=False, **kwargs):
         self._init_robot_(scene, need_topp, **kwargs)
 
-        if self.communication_flag:
+        # getattr: if building the planners failed on an earlier seed (e.g. GPU out of memory while loading cuRobo), the
+        # attributes were never set; rebuild them here instead of failing every later seed with AttributeError
+        if getattr(self, "communication_flag", False):
             if hasattr(self, "left_conn") and self.left_conn:
                 self.left_conn.send({"cmd": "reset"})
                 _ = self.left_conn.recv()
@@ -132,8 +146,11 @@ class Robot:
                 self.right_conn.send({"cmd": "reset"})
                 _ = self.right_conn.recv()
         else:
-            if not isinstance(self.left_planner, CuroboPlanner) or not isinstance(self.right_planner, CuroboPlanner):
-                self.set_planner(scene=scene)
+            need_plan = kwargs.get("need_plan", True)
+            left_planner, right_planner = getattr(self, "left_planner", None), getattr(self, "right_planner", None)
+            has_curobo = isinstance(left_planner, CuroboPlanner) and isinstance(right_planner, CuroboPlanner)
+            if not has_curobo and (need_plan or not isinstance(left_planner, ReplayPlanner)):
+                self.set_planner(scene=scene, need_plan=need_plan)
 
         self.init_joints()
 
@@ -254,7 +271,7 @@ class Robot:
         print("left ee: ", self.left_ee.get_name())
         print("right ee: ", self.right_ee.get_name())
 
-    def set_planner(self, scene=None):
+    def set_planner(self, scene=None, need_plan=True):
         abs_left_curobo_yml_path = os.path.join(CONFIGS.ROOT_PATH, self.left_curobo_yml_path)
         abs_right_curobo_yml_path = os.path.join(CONFIGS.ROOT_PATH, self.right_curobo_yml_path)
 
@@ -264,7 +281,12 @@ class Robot:
             abs_left_curobo_yml_path = abs_left_curobo_yml_path.replace("curobo.yml", "curobo_left.yml")
             abs_right_curobo_yml_path = abs_right_curobo_yml_path.replace("curobo.yml", "curobo_right.yml")
 
-        if not self.communication_flag:
+        if not need_plan:
+            # replaying saved joint paths (collection with use_seed: true): no motion planning happens, so skip cuRobo
+            # (~4 GB GPU memory per process) and let more replay processes share the GPU
+            self.communication_flag = False
+            self.left_planner, self.right_planner = ReplayPlanner(), ReplayPlanner()
+        elif not self.communication_flag:
             self.left_planner = CuroboPlanner(self.left_entity_origion_pose,
                                               self.left_arm_joints_name,
                                               [joint.get_name() for joint in self.left_entity.get_active_joints()],

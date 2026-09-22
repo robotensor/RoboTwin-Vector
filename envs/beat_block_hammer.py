@@ -35,11 +35,19 @@ class beat_block_hammer(Base_Task):
                 rotate_lim=[0, 0, 0.5],
             )
 
+        default_half_size = (0.025, 0.025, 0.025)
+        half_size = self.level_box_size(default_half_size, name="block")
+        self.block_color_name, block_color = self.level_box_color("Red", name="block")
+        block_pose.set_p([
+            block_pose.p[0],
+            block_pose.p[1],
+            self.level_box_z(block_pose.p[2], half_size, default_half_size),
+        ])
         self.block = create_box(
             scene=self,
             pose=block_pose,
-            half_size=(0.025, 0.025, 0.025),
-            color=(1, 0, 0),
+            half_size=half_size,
+            color=block_color,
             name="box",
             is_static=True,
         )

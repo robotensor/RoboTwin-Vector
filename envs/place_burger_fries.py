@@ -19,7 +19,7 @@ class place_burger_fries(Base_Task):
             rotate_rand=True,
             rotate_lim=[0, 0, 0],
         )
-        self.tray_id = np.random.choice([0, 1, 2, 3], 1)[0]
+        self.tray_id = self.lvl.pick("model_id", np.random.choice([0, 1, 2, 3], 1)[0], 0, name="tray")
         self.tray = create_actor(
             scene=self,
             pose=rand_pos_1,
@@ -38,7 +38,8 @@ class place_burger_fries(Base_Task):
             rotate_rand=True,
             rotate_lim=[0, 0, 0],
         )
-        self.object1_id = np.random.choice([0, 1, 2, 3, 4, 5], 1)[0]
+        self.object1_id = self.lvl.pick("model_id", np.random.choice([0, 1, 2, 3, 4, 5], 1)[0], 0,
+                                        name="hamburg")
         self.hamburg = create_actor(
             scene=self,
             pose=rand_pos_2,
@@ -55,7 +56,7 @@ class place_burger_fries(Base_Task):
             rotate_rand=True,
             rotate_lim=[0, 0, 0],
         )
-        self.object2_id = np.random.choice([0, 1], 1)[0]
+        self.object2_id = self.lvl.pick("model_id", np.random.choice([0, 1], 1)[0], 0, name="frenchfries")
         self.frenchfries = create_actor(
             scene=self,
             pose=rand_pos_3,

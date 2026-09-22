@@ -9,7 +9,7 @@ class place_empty_cup(Base_Task):
         super()._init_task_env_(**kwags)
 
     def load_actors(self):
-        tag = np.random.randint(0, 2)
+        tag = self.lvl.pick("arm_choice", np.random.randint(0, 2), 0, name="side")
         cup_xlim = [[0.15, 0.3], [-0.3, -0.15]]
         coaster_lim = [[-0.05, 0.1], [-0.1, 0.05]]
         self.cup = rand_create_actor(

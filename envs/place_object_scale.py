@@ -46,13 +46,15 @@ class place_object_scale(Base_Task):
 
         object_list = ["047_mouse", "048_stapler", "050_bell"]
 
-        self.selected_modelname = np.random.choice(object_list)
+        self.selected_modelname = self.lvl.pick("object_category", np.random.choice(object_list),
+                                                object_list[0], name="object")
 
         available_model_ids = get_available_model_ids(self.selected_modelname)
         if not available_model_ids:
             raise ValueError(f"No available model_data.json files found for {self.selected_modelname}")
 
-        self.selected_model_id = np.random.choice(available_model_ids)
+        self.selected_model_id = self.lvl.pick("model_id", np.random.choice(available_model_ids),
+                                               min(available_model_ids), name="object")
 
         self.object = create_actor(
             scene=self,
@@ -83,7 +85,7 @@ class place_object_scale(Base_Task):
                 rotate_lim=[0, 3.14, 0],
             )
 
-        self.scale_id = np.random.choice([0, 1, 5, 6], 1)[0]
+        self.scale_id = self.lvl.pick("model_id", np.random.choice([0, 1, 5, 6], 1)[0], 0, name="scale")
 
         self.scale = create_actor(
             scene=self,

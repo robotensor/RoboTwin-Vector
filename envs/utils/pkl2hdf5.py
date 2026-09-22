@@ -76,7 +76,15 @@ def _to_4x4(values):
     return values
 
 
-def create_xpolicylab_hdf5(data, hdf5_path, instructions, frequency):
+def _json_default(value):
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    if isinstance(value, np.generic):
+        return value.item()
+    return str(value)
+
+
+def create_xpolicylab_hdf5(data, hdf5_path, instructions, frequency, additional_info=None):
     joints = data["joint_action"]
     frame_num = len(joints["left_arm"])
     if frame_num < 2:
@@ -96,9 +104,13 @@ def create_xpolicylab_hdf5(data, hdf5_path, instructions, frequency):
             data=json.dumps(instruction_values, ensure_ascii=False),
             dtype=string_dtype,
         )
-        f.create_group("additional_info").create_dataset(
-            "frequency", data=np.asarray(frequency, dtype=np.int32)
-        )
+        info_group = f.create_group("additional_info")
+        info_group.create_dataset("frequency", data=np.asarray(frequency, dtype=np.int32))
+        # episode metadata from the collector (seed, randomization switches, scene info), JSON per key
+        for key, value in (additional_info or {}).items():
+            info_group.create_dataset(
+                key, data=json.dumps(value, ensure_ascii=False, default=_json_default), dtype=string_dtype
+            )
 
         state = f.create_group("state")
         action = f.create_group("action")
@@ -175,6 +187,7 @@ def pkl_files_to_hdf5_and_video(
     *,
     instructions=None,
     frequency=15,
+    additional_info=None,
 ):
     data_list = parse_dict_structure(load_pkl_file(pkl_files[0]))
     for pkl_file_path in pkl_files:
@@ -182,7 +195,7 @@ def pkl_files_to_hdf5_and_video(
         append_data_to_structure(data_list, pkl_file)
 
     images_to_video(np.array(data_list["observation"]["head_camera"]["rgb"]), out_path=video_path)
-    return create_xpolicylab_hdf5(data_list, hdf5_path, instructions, frequency)
+    return create_xpolicylab_hdf5(data_list, hdf5_path, instructions, frequency, additional_info)
 
 
 def process_folder_to_hdf5_video(
@@ -192,6 +205,7 @@ def process_folder_to_hdf5_video(
     *,
     instructions=None,
     frequency=15,
+    additional_info=None,
 ):
     pkl_files = []
     for fname in os.listdir(folder_path):
@@ -217,4 +231,5 @@ def process_folder_to_hdf5_video(
         video_path,
         instructions=instructions,
         frequency=frequency,
+        additional_info=additional_info,
     )

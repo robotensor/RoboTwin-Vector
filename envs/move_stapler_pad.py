@@ -27,7 +27,8 @@ class move_stapler_pad(Base_Task):
                 rotate_rand=True,
                 rotate_lim=[0, 3.14, 0],
             )
-        self.stapler_id = np.random.choice([0, 1, 2, 3, 4, 5, 6], 1)[0]
+        self.stapler_id = self.lvl.pick("model_id", np.random.choice([0, 1, 2, 3, 4, 5, 6], 1)[0], 0,
+                                        name="stapler")
         self.stapler = create_actor(
             scene=self,
             pose=rand_pos,
@@ -53,7 +54,13 @@ class move_stapler_pad(Base_Task):
                 qpos=[1, 0, 0, 0],
                 rotate_rand=False,
             )
-        half_size = [0.055, 0.03, 0.0005]
+        default_half_size = [0.055, 0.03, 0.0005]
+        half_size = self.level_box_size(default_half_size, name="pad")
+        target_rand_pose.set_p([
+            target_rand_pose.p[0],
+            target_rand_pose.p[1],
+            self.level_box_z(target_rand_pose.p[2], half_size, default_half_size),
+        ])
 
         colors = {
             "Red": (1, 0, 0),
@@ -67,11 +74,11 @@ class move_stapler_pad(Base_Task):
         }
 
         color_items = list(colors.items())
-        color_index = np.random.choice(len(color_items))
-        self.color_name, self.color_value = color_items[color_index]
+        self.color_name, self.color_value = self.lvl.pick(
+            "object_color", color_items[np.random.choice(len(color_items))], ("Red", colors["Red"]), name="pad")
 
         self.pad = create_box(
-            scene=self.scene,
+            scene=self,  # `self`, not `self.scene`: the pad has to follow the randomized table height
             pose=target_rand_pose,
             half_size=half_size,
             color=self.color_value,

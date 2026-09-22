@@ -11,7 +11,7 @@ class place_bread_skillet(Base_Task):
 
     def load_actors(self):
         id_list = [0, 1, 3, 5, 6]
-        self.bread_id = np.random.choice(id_list)
+        self.bread_id = self.lvl.pick("model_id", np.random.choice(id_list), id_list[0], name="bread")
         rand_pos = rand_pose(
             xlim=[-0.28, 0.28],
             ylim=[-0.2, 0.05],
@@ -37,7 +37,8 @@ class place_bread_skillet(Base_Task):
 
         xlim = [0.15, 0.25] if rand_pos.p[0] < 0 else [-0.25, -0.15]
         self.model_id_list = [0, 1, 2, 3]
-        self.skillet_id = np.random.choice(self.model_id_list)
+        self.skillet_id = self.lvl.pick("model_id", np.random.choice(self.model_id_list),
+                                        self.model_id_list[0], name="skillet")
         rand_pos = rand_pose(
             xlim=xlim,
             ylim=[-0.2, 0.05],

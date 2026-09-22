@@ -27,6 +27,7 @@ import glob
 
 
 from ._GLOBAL_CONFIGS import *
+from ._levels import BOX_SIZE_RANGE, PROCEDURAL_COLORS, LevelController
 
 from typing import Optional, Literal
 
@@ -72,6 +73,11 @@ class Base_Task(gym.Env):
 
         self.need_topp = True  # TODO
 
+        # Difficulty level: decides which of the randomization sources below actually apply.
+        # Every source still draws from np.random at every level (see envs/_levels.py), so one seed
+        # gives the same object layout at all levels.
+        self.lvl = LevelController(kwags.get("level", 4))
+
         # Random
         random_setting = kwags.get("domain_randomization")
         self.random_background = random_setting.get("random_background", False)
@@ -81,7 +87,12 @@ class Base_Task(gym.Env):
         self.random_table_height = random_setting.get("random_table_height", 0)
         self.random_light = random_setting.get("random_light", False)
         self.crazy_random_light_rate = random_setting.get("crazy_random_light_rate", 0)
-        self.crazy_random_light = (0 if not self.random_light else np.random.rand() < self.crazy_random_light_rate)
+        self.crazy_random_light = self.lvl.pick(
+            "light",
+            (0 if not self.random_light else np.random.rand() < self.crazy_random_light_rate),
+            False,
+            name="crazy",
+        )
         self.random_embodiment = random_setting.get("random_embodiment", False)  # TODO
 
         self.file_path = []
@@ -109,7 +120,12 @@ class Base_Task(gym.Env):
         self.record_cluttered_objects = list()  # record cluttered objects info
 
         self.eval_success = False
-        self.table_z_bias = (np.random.uniform(low=-self.random_table_height, high=0) + table_height_bias)  # TODO
+        self.table_z_bias = self.lvl.pick(
+            "table_height",
+            np.random.uniform(low=-self.random_table_height, high=0) + table_height_bias,
+            table_height_bias,
+            name="table_z_bias",
+        )
         self.need_plan = kwags.get("need_plan", True)
         self.left_joint_path = kwags.get("left_joint_path", [])
         self.right_joint_path = kwags.get("right_joint_path", [])
@@ -130,9 +146,16 @@ class Base_Task(gym.Env):
 
         self.robot.set_origin_endpose()
         self.load_actors()
+        # the task's own objects as load_actors placed them, before clutter and before physics
+        # settling: this is what scripts/check_level_alignment.py compares across levels
+        self.initial_actor_poses = [(a.get_name(), [float(v) for v in a.get_pose().p] +
+                                     [float(v) for v in a.get_pose().q])
+                                    for a in self.scene.get_all_actors()
+                                    if a.get_name() not in ("", "ground", "wall", "table")]
 
-        if self.cluttered_table:
+        if self.cluttered_table and self.lvl.active("clutter"):
             self.get_cluttered_table()
+        self.lvl.record("clutter", "objects", self.record_cluttered_objects)
 
         is_stable, unstable_list = self.check_stable()
         if not is_stable:
@@ -156,8 +179,39 @@ class Base_Task(gym.Env):
             "table_texture": self.table_texture,
         }
         self.info["info"] = {}
+        self.info["level_info"] = self.lvl.metadata()
 
         self.stage_success_tag = False
+
+    # ---------------------------------------------------------------- level helpers
+    def level_box_size(self, half_size, name, size_range=BOX_SIZE_RANGE):
+        """Level 3 for a box the task builds itself: scale its half size, per axis.
+
+        The draw happens at every level; below level 3 the upstream half size is returned unchanged.
+        """
+        factors = np.random.uniform(size_range[0], size_range[1], size=3)  # level: object_size
+        return self.lvl.pick(
+            "object_size",
+            (np.asarray(half_size, dtype=float) * factors).tolist(),
+            [float(v) for v in half_size],
+            name=name,
+        )
+
+    def level_box_color(self, default_name, name, colors=PROCEDURAL_COLORS):
+        """Level 3 for a box the task builds itself: returns (colour name, rgb)."""
+        items = list(colors.items())
+        idx = np.random.choice(len(items))  # level: object_color
+        return self.lvl.pick(
+            "object_color",
+            items[idx],
+            (default_name, colors[default_name]),
+            name=name,
+        )
+
+    @staticmethod
+    def level_box_z(z, half_size, default_half_size):
+        """Keep a resized box resting on the same plane: only its height above the table changes."""
+        return z + (float(half_size[2]) - float(default_half_size[2]))
 
     def check_stable(self):
         actors_list, actors_pose_list = [], []
@@ -239,11 +293,12 @@ class Base_Task(gym.Env):
         self.direction_light_lst = []
         for direction_light in direction_lights:
             if self.random_light:
-                direction_light[1] = [
-                    np.random.rand(),
-                    np.random.rand(),
-                    np.random.rand(),
-                ]
+                direction_light[1] = self.lvl.pick(
+                    "light",
+                    [np.random.rand(), np.random.rand(), np.random.rand()],
+                    list(direction_light[1]),
+                    name=f"direction_light_{len(self.direction_light_lst)}",
+                )
             self.direction_light_lst.append(
                 self.scene.add_directional_light(direction_light[0], direction_light[1], shadow=shadow))
         # default point lights position and intensity
@@ -251,7 +306,12 @@ class Base_Task(gym.Env):
         self.point_light_lst = []
         for point_light in point_lights:
             if self.random_light:
-                point_light[1] = [np.random.rand(), np.random.rand(), np.random.rand()]
+                point_light[1] = self.lvl.pick(
+                    "light",
+                    [np.random.rand(), np.random.rand(), np.random.rand()],
+                    list(point_light[1]),
+                    name=f"point_light_{len(self.point_light_lst)}",
+                )
             self.point_light_lst.append(self.scene.add_point_light(point_light[0], point_light[1], shadow=shadow))
 
         # initialize viewer with camera position and orientation
@@ -281,16 +341,22 @@ class Base_Task(gym.Env):
                 [name for name in os.listdir(directory_path) if os.path.isfile(os.path.join(directory_path, name))])
 
             # wall_texture, table_texture = random.randint(0, file_count - 1), random.randint(0, file_count - 1)
-            wall_texture, table_texture = np.random.randint(0, file_count), np.random.randint(0, file_count)
+            wall_texture, table_texture = np.random.randint(0, file_count), np.random.randint(0, file_count)  # level: background
 
-            self.wall_texture, self.table_texture = (
-                f"{texture_type}/{wall_texture}",
-                f"{texture_type}/{table_texture}",
+            clean_wall = np.random.rand() <= self.clean_background_rate  # level: background
+            clean_table = np.random.rand() <= self.clean_background_rate  # level: background
+            self.wall_texture = self.lvl.pick(
+                "background",
+                None if clean_wall else f"{texture_type}/{wall_texture}",
+                None,
+                name="wall_texture",
             )
-            if np.random.rand() <= self.clean_background_rate:
-                self.wall_texture = None
-            if np.random.rand() <= self.clean_background_rate:
-                self.table_texture = None
+            self.table_texture = self.lvl.pick(
+                "background",
+                None if clean_table else f"{texture_type}/{table_texture}",
+                None,
+                name="table_texture",
+            )
         else:
             self.wall_texture, self.table_texture = None, None
 
@@ -323,7 +389,7 @@ class Base_Task(gym.Env):
         ylim[0] += self.table_xy_bias[1]
         ylim[1] += self.table_xy_bias[1]
 
-        if np.random.rand() < self.clean_background_rate:
+        if np.random.rand() < self.clean_background_rate:  # level: clutter
             return
 
         task_objects_list = []
@@ -341,9 +407,9 @@ class Base_Task(gym.Env):
         trys = 0
 
         while success_count < cluttered_numbers and trys < max_try:
-            obj = np.random.randint(len(self.obj_names))
+            obj = np.random.randint(len(self.obj_names))  # level: clutter
             obj_name = self.obj_names[obj]
-            obj_idx = np.random.randint(len(self.cluttered_item_info[obj_name]["ids"]))
+            obj_idx = np.random.randint(len(self.cluttered_item_info[obj_name]["ids"]))  # level: clutter
             obj_idx = self.cluttered_item_info[obj_name]["ids"][obj_idx]
             obj_radius = self.cluttered_item_info[obj_name]["params"][obj_idx]["radius"]
             obj_offset = self.cluttered_item_info[obj_name]["params"][obj_idx]["z_offset"]
@@ -388,7 +454,7 @@ class Base_Task(gym.Env):
         """
         if not hasattr(self, "robot"):
             self.robot = Robot(self.scene, self.need_topp, **kwags)
-            self.robot.set_planner(self.scene)
+            self.robot.set_planner(self.scene, need_plan=kwags.get("need_plan", True))
             self.robot.init_joints()
         else:
             self.robot.reset(self.scene, self.need_topp, **kwags)
@@ -424,11 +490,11 @@ class Base_Task(gym.Env):
         """
         if self.crazy_random_light:
             for renderColor in self.point_light_lst:
-                renderColor.set_color([np.random.rand(), np.random.rand(), np.random.rand()])
+                renderColor.set_color([np.random.rand(), np.random.rand(), np.random.rand()])  # level: light
             for renderColor in self.direction_light_lst:
-                renderColor.set_color([np.random.rand(), np.random.rand(), np.random.rand()])
+                renderColor.set_color([np.random.rand(), np.random.rand(), np.random.rand()])  # level: light
             now_ambient_light = self.scene.ambient_light
-            now_ambient_light = np.clip(np.array(now_ambient_light) + np.random.rand(3) * 0.2 - 0.1, 0, 1)
+            now_ambient_light = np.clip(np.array(now_ambient_light) + np.random.rand(3) * 0.2 - 0.1, 0, 1)  # level: light
             self.scene.set_ambient_light(now_ambient_light)
         self.cameras.update_wrist_camera(self.robot.left_camera.get_pose(), self.robot.right_camera.get_pose())
         self.scene.update_render()
@@ -605,7 +671,7 @@ class Base_Task(gym.Env):
             traj_data = pickle.load(f)
         return traj_data
 
-    def merge_pkl_to_hdf5_video(self, instructions=None):
+    def merge_pkl_to_hdf5_video(self, instructions=None, additional_info=None):
         if not self.save_data:
             return
         cache_path = self.folder_path["cache"]
@@ -621,6 +687,7 @@ class Base_Task(gym.Env):
             target_video_path,
             instructions=instructions,
             frequency=int(self.save_freq or 15),
+            additional_info=additional_info,
         )
 
     def remove_data_cache(self):

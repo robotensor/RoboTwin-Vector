@@ -20,7 +20,7 @@ class place_fan(Base_Task):
             rotate_lim=[0, 2 * np.pi, 0],
         )
         id_list = [4, 5]
-        self.fan_id = np.random.choice(id_list)
+        self.fan_id = self.lvl.pick("model_id", np.random.choice(id_list), id_list[0], name="fan")
         self.fan = create_actor(
             scene=self,
             pose=rand_pos,
@@ -63,13 +63,20 @@ class place_fan(Base_Task):
         }
 
         color_items = list(colors.items())
-        idx = np.random.choice(len(color_items))
-        self.color_name, self.color_value = color_items[idx]
+        self.color_name, self.color_value = self.lvl.pick(
+            "object_color", color_items[np.random.choice(len(color_items))], ("Red", colors["Red"]), name="pad")
 
+        default_half_size = (0.05, 0.05, 0.001)
+        half_size = self.level_box_size(default_half_size, name="pad")
+        rand_pos.set_p([
+            rand_pos.p[0],
+            rand_pos.p[1],
+            self.level_box_z(rand_pos.p[2], half_size, default_half_size),
+        ])
         self.pad = create_box(
-            scene=self.scene,
+            scene=self,  # `self`, not `self.scene`: the pad has to follow the randomized table height
             pose=rand_pos,
-            half_size=(0.05, 0.05, 0.001),
+            half_size=half_size,
             color=self.color_value,
             name="box",
         )

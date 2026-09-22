@@ -10,11 +10,14 @@ class place_shoe(Base_Task):
         super()._init_task_env_(**kwags)
 
     def load_actors(self):
+        default_half_size = (0.13, 0.05, 0.0005)
+        half_size = self.level_box_size(default_half_size, name="target_block")
+        self.target_color_name, target_color = self.level_box_color("Blue", name="target_block")
         self.target_block = create_box(
             scene=self,
-            pose=sapien.Pose([0, -0.08, 0.74], [1, 0, 0, 0]),
-            half_size=(0.13, 0.05, 0.0005),
-            color=(0, 0, 1),
+            pose=sapien.Pose([0, -0.08, self.level_box_z(0.74, half_size, default_half_size)], [1, 0, 0, 0]),
+            half_size=half_size,
+            color=target_color,
             is_static=True,
             name="box",
         )
@@ -47,7 +50,7 @@ class place_shoe(Base_Task):
                 rotate_lim=[0, 3.14, 0],
                 qpos=[0.707, 0.707, 0, 0],
             )
-        self.shoe_id = np.random.choice([i for i in range(10)])
+        self.shoe_id = self.lvl.pick("model_id", np.random.choice([i for i in range(10)]), 0, name="shoe")
         self.shoe = create_actor(
             scene=self,
             pose=shoes_pose,

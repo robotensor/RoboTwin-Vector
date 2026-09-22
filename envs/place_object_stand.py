@@ -51,11 +51,13 @@ class place_object_stand(Base_Task):
             "057_toycar",
             "079_remotecontrol",
         ]
-        self.selected_modelname = np.random.choice(object_list)
+        self.selected_modelname = self.lvl.pick("object_category", np.random.choice(object_list),
+                                                object_list[0], name="object")
         available_model_ids = get_available_model_ids(self.selected_modelname)
         if not available_model_ids:
             raise ValueError(f"No available model_data.json files found for {self.selected_modelname}")
-        self.selected_model_id = np.random.choice(available_model_ids)
+        self.selected_model_id = self.lvl.pick("model_id", np.random.choice(available_model_ids),
+                                               min(available_model_ids), name="object")
         self.object = create_actor(
             scene=self,
             pose=rand_pos,
@@ -86,7 +88,8 @@ class place_object_stand(Base_Task):
                 rotate_lim=[0, np.pi / 6, 0],
             )
         id_list = [0, 1, 2, 3, 4]
-        self.displaystand_id = np.random.choice(id_list)
+        self.displaystand_id = self.lvl.pick("model_id", np.random.choice(id_list), id_list[0],
+                                             name="displaystand")
         self.displaystand = create_actor(
             scene=self,
             pose=target_rand_pos,

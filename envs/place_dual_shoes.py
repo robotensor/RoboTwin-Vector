@@ -19,7 +19,7 @@ class place_dual_shoes(Base_Task):
             is_static=True,
         )
 
-        shoe_id = np.random.choice([i for i in range(10)])
+        shoe_id = self.lvl.pick("model_id", np.random.choice([i for i in range(10)]), 0, name="shoe")
         self.shoe_id = shoe_id
 
         # left shoe
