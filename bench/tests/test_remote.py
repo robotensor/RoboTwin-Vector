@@ -423,7 +423,7 @@ def test_a_served_policy_is_not_reset_without_its_episodes_seed(errors):
     assert script.clients == []  # nothing connected
 
 
-def test_a_served_policy_needs_icil_policy_installed(monkeypatch):
+def test_a_served_policy_needs_vector_policy_installed(monkeypatch):
     for name in ("vector_policy", "vector_policy.errors", "vector_policy.client"):
         monkeypatch.setitem(sys.modules, name, None)
     with pytest.raises(PolicyError, match="needs vector-policy installed"):

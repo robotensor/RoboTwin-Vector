@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: icil
+        working-directory: bench
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: icil
+        working-directory: bench
     strategy:
       matrix:
         python: ["3.10", "3.12"]
@@ -36,7 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: icil
+        working-directory: bench
     strategy:
       matrix:
         python: ["3.10", "3.12"]
