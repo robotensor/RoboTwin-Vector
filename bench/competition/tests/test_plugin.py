@@ -67,11 +67,11 @@ def test_the_entry_point_names_the_plugin_object():
     assert project["entry-points"]["robotensor.benchmarks"] == {
         "robotwin": "robotensor_benchmark_robotwin:BENCHMARK"
     }
-    # The benchmark it wraps is pinned to the version released with it; vector-policy is not
+    # The benchmark it wraps is pinned to the version released with it; the policy protocol is not
     # imported by the plugin at all.
     assert set(project["dependencies"]) == {
         f"robotwin-bench=={robotwin_bench.__version__}",
-        "vector-policy",
+        "robotensor-vector-policy",
     }
     installed = [
         ep for ep in metadata.entry_points(group="robotensor.benchmarks") if ep.name == "robotwin"
@@ -118,7 +118,7 @@ def test_the_catalogue_has_the_shape_the_orchestrator_reads_and_the_spec_needs()
     assert isinstance(shown["suites"], dict) and all(
         isinstance(v, list) for v in shown["suites"].values()
     )
-    # The one-arm Franka track's suite, then the Vector competition's.
+    # The one-arm Franka track's suite, then Robotensor Vector's.
     assert list(shown["suites"]) == [SPEC_SUITE, "vector_level1"]
     assert set(SPEC_CATEGORIES) <= set(shown["categories"])
     table = tasks.table()
