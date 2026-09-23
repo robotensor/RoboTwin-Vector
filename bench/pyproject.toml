@@ -1,0 +1,54 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "robotwin-bench"
+version = "0.2.0"
+description = "RoboTwin-Vector: one-demonstration in-context imitation learning benchmark on RoboTwin 2.0."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+dependencies = [
+  # The pure half runs on numpy 1 (the simulator env) and 2 (a validator host beside bittensor).
+  "numpy>=1.24,<3",
+  "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+video = ["imageio-ffmpeg>=0.5"]
+dev = ["pytest>=8", "pytest-cov", "ruff==0.16.7", "imageio-ffmpeg>=0.5", "h5py>=3.10", "Pillow>=10", "huggingface-hub>=0.34,<2"]
+
+[project.urls]
+Repository = "https://github.com/robotensor/RoboTwin-Vector"
+Issues = "https://github.com/robotensor/RoboTwin-Vector/issues"
+
+[project.scripts]
+robotwin-bench = "robotwin_bench.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/robotwin_bench"]
+
+[tool.hatch.build.targets.sdist]
+# Simulation needs the RoboTwin checkout this directory lives in; it is not part of this Python
+# distribution.
+only-include = [
+  "src/robotwin_bench", "tests", "scripts", "docs",
+  "README.md", "CITATION.cff", "LICENSE", "pyproject.toml",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests", "competition/src", "competition/tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "W"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+  "sim: needs the RoboTwin simulator (SAPIEN, assets, GPU)",
+  "slow: takes minutes",
+]
