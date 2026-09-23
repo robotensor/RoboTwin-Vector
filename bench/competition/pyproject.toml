@@ -3,9 +3,9 @@ requires = ["hatchling>=1.25"]
 build-backend = "hatchling.build"
 
 [project]
-name = "robotwin-icil-competition"
+name = "robotensor-benchmark-robotwin"
 version = "0.2.0"
-description = "The RoboTwin-Vector benchmark as a plugin of the Robotensor Robotensor Vector orchestrator."
+description = "The RoboTwin-Vector benchmark as a plugin of the Robotensor Vector orchestrator."
 readme = "README.md"
 license = { text = "Apache-2.0" }
 requires-python = ">=3.10"

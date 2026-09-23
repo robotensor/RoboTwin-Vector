@@ -63,7 +63,7 @@ def test_every_method_takes_the_keywords_the_orchestrator_passes(name):
 
 def test_the_entry_point_names_the_plugin_object():
     project = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]
-    assert project["name"] == "robotwin-icil-competition"
+    assert project["name"] == "robotensor-benchmark-robotwin"
     assert project["entry-points"]["robotensor.benchmarks"] == {
         "robotwin": "robotensor_benchmark_robotwin:BENCHMARK"
     }
@@ -77,7 +77,7 @@ def test_the_entry_point_names_the_plugin_object():
         ep for ep in metadata.entry_points(group="robotensor.benchmarks") if ep.name == "robotwin"
     ]
     if not installed:
-        pytest.skip("robotwin-icil-competition is not installed; its metadata cannot be read")
+        pytest.skip("robotensor-benchmark-robotwin is not installed; its metadata cannot be read")
     [entry_point] = installed
     assert entry_point.value == "robotensor_benchmark_robotwin:BENCHMARK"
     assert entry_point.load() is BENCHMARK

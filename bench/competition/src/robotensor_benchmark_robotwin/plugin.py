@@ -80,7 +80,7 @@ class RoboTwinBenchmark:
                 "version": robotwin_bench.__version__,
                 "source_sha256": robotwin_bench.source_sha256(),
             },
-            "plugin": {"distribution": "robotwin-icil-competition", "version": VERSION},
+            "plugin": {"distribution": "robotensor-benchmark-robotwin", "version": VERSION},
             "commits": {"benchmark": git_commit(REPO_ROOT), "robotwin": robotwin_commit()},
             "embodiments": {
                 name: {

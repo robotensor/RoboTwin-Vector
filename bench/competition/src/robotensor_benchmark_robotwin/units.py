@@ -40,7 +40,7 @@ DERIVATION = catalogue.PROFILES[catalogue.FRANKA_1ARM].derivation
 #: by its wheel's sha256, but each task's category and arms are robotwin-bench's: another table
 #: would derive other units under the same pin, so `derive_units` refuses one. A change to the
 #: catalogue that is meant updates this, with `DERIVATION` and the pinned test if units change.
-CATALOGUE_SHA256 = "3e9f05023783dddcd7372ff3862172006551608d2c580f387974bc3e82bf4e02"
+CATALOGUE_SHA256 = "dfcb1d3005dfe9577815890b30f884dfa2d13b3fa421dd61c3c9d3087eefcf00"
 
 
 class Sha256Counter:

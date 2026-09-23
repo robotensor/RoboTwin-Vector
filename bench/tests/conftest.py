@@ -77,14 +77,14 @@ class Served:
 
 @pytest.fixture
 def replay_manifest():
-    """The `icil.yaml` of vector-policy's replay example: under `VECTOR_POLICY_EXAMPLES`, or beside
+    """The `policy.yaml` of vector-policy's replay example: under `VECTOR_POLICY_EXAMPLES`, or beside
     the installed package's source tree."""
     vector_policy = pytest.importorskip("vector_policy")
     root = os.environ.get("VECTOR_POLICY_EXAMPLES")
     examples = (
         Path(root) if root else Path(vector_policy.__file__).resolve().parents[2] / "examples"
     )
-    manifest = examples / "replay_policy" / "icil.yaml"
+    manifest = examples / "replay_policy" / "policy.yaml"
     if not manifest.is_file():
         pytest.skip(f"no vector-policy replay example at {manifest}; set VECTOR_POLICY_EXAMPLES")
     return manifest
@@ -92,7 +92,7 @@ def replay_manifest():
 
 @pytest.fixture
 def policy_repo(tmp_path):
-    """`policy_repo(**kwargs)`: the `icil.yaml` of a repository serving `FLAKY_POLICY`, built
+    """`policy_repo(**kwargs)`: the `policy.yaml` of a repository serving `FLAKY_POLICY`, built
     with `kwargs` (`where`: init, reset, prompt, act, hang, slow or close; `at`: the act step;
     `sleep_s`, how long `hang` stalls that act, `slow` every act and `close` closing)."""
 
@@ -101,7 +101,7 @@ def policy_repo(tmp_path):
         (root / "flaky").mkdir(parents=True, exist_ok=True)
         (root / "flaky" / "__init__.py").write_text("")
         (root / "flaky" / "policy.py").write_text(FLAKY_POLICY)
-        manifest = root / "icil.yaml"
+        manifest = root / "policy.yaml"
         manifest.write_text(f"api: 1\npolicy: flaky.policy:Flaky\nkwargs: {json.dumps(kwargs)}\n")
         return manifest
 

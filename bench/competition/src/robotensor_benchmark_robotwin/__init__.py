@@ -1,4 +1,4 @@
-"""The RoboTwin-Vector benchmark as a plugin of the Robotensor Robotensor Vector orchestrator.
+"""The RoboTwin-Vector benchmark as a plugin of the Robotensor Vector orchestrator.
 
 The orchestrator finds it through the `robotensor.benchmarks` entry point `robotwin`, which loads
 `BENCHMARK`. It never imports `vector_orchestrator`: the orchestrator checks it structurally.

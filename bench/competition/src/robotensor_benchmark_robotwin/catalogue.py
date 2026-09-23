@@ -6,7 +6,7 @@ The tasks, their categories and the arms each task's expert uses (`Task.arms`, r
 - `franka_1arm`, the suite the orchestrator's one-arm Franka track draws from, chosen from the
   Franka survey (robotensor/RoboTwin-Vector#83, measurements at `SURVEY`, rule and decision in this
   package's README): Same Scene, RoboTwin's `demo_clean`.
-- `vector_level1`, the Vector competition's: the 16 tasks of the difficulty-level benchmark
+- `vector_level1`, Robotensor Vector's: the 16 tasks of the difficulty-level benchmark
   (`docs/LEVELS.md` of the Vector level experiment) on two Franka arms at level 1, cross-scene: the
   demonstration is recorded in one scene and the unit is scored in another (`robotwin_bench`'s
   `cross_scene_level`).
@@ -28,7 +28,7 @@ from robotwin_bench.records import CROSS_SCENE_LEVEL, SAME_SCENE
 FRANKA_1ARM = "franka_1arm"
 #: The categories that track scores, as its skills name them.
 FRANKA_1ARM_CATEGORIES = ("pick_and_place", "stacking", "press_push")
-#: The Vector competition's suite: the level benchmark's 16 tabletop tasks.
+#: Robotensor Vector's suite: the level benchmark's 16 tabletop tasks.
 VECTOR_LEVEL1 = "vector_level1"
 #: The track's tasks, in task-table order: the tasks whose expert, on two Franka arms, solved at
 #: least 2 of 3 surveyed seeds and moved one arm in every demonstration it produced. Stacking has
@@ -98,7 +98,8 @@ class SuiteProfile:
 
 
 PROFILES: dict[str, SuiteProfile] = {
-    # Unchanged since units/2: its pinned unit hashes must not move.
+    # Unchanged since units/2, under the label this distribution had then: the derivation is
+    # hashed into every unit id, so renaming the distribution must not move it.
     FRANKA_1ARM: SuiteProfile(
         embodiment=FRANKA,
         task_config="demo_clean",
@@ -109,7 +110,7 @@ PROFILES: dict[str, SuiteProfile] = {
         embodiment=FRANKA,
         task_config="level1",
         evaluation_setting=CROSS_SCENE_LEVEL,
-        derivation="robotwin-icil-competition/vector_level1/units/1",
+        derivation="robotensor-benchmark-robotwin/vector_level1/units/1",
         seed_low=PUBLIC_SEEDS_END,
         legal_joints=True,
         level=1,
