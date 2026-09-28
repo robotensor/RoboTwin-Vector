@@ -1,0 +1,8 @@
+line-length = 100
+target-version = "py310"
+# The package is imported as robotensor_bench from the repository root: that is its source root.
+src = ["..", "tests"]
+
+[lint]
+select = ["E", "F", "I", "B", "UP", "W"]
+ignore = ["E501"]

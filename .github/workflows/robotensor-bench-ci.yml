@@ -1,0 +1,29 @@
+name: robotensor-bench-ci
+# The competition's harness under robotensor_bench/, run from the checkout as the competition runs
+# it (never installed). The RoboTwin checkout it drives is this repository itself, so its task
+# table is checked against envs/ on every run.
+on:
+  push:
+  pull_request:
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install ruff==0.16.7
+      - run: ruff check robotensor_bench && ruff format --check robotensor_bench
+  unit:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "${{ matrix.python }}" }
+      # vector-policy lives in the private orchestrator repository and is on no package index, so
+      # it is not installed here: the tests that drive a served policy importorskip it and skip.
+      - run: pip install -r robotensor_bench/requirements.txt pytest
+      - run: PYTHONPATH=$PWD pytest -c robotensor_bench/pytest.ini robotensor_bench/tests -q -m "not sim"

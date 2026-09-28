@@ -1,0 +1,6 @@
+# What the harness imports beyond the simulator's own stack (scripts/install_robotwin.sh installs
+# both into the simulator env). It is run from the checkout, never installed: python -m
+# robotensor_bench.cli from the repository root.
+numpy>=1.24,<3
+PyYAML>=6.0
+imageio-ffmpeg>=0.5
