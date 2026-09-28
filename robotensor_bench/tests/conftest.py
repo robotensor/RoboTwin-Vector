@@ -1,7 +1,7 @@
 """Fixtures shared by the pure tests and the simulator tests: a policy served at an address.
 
-`serve_policy` runs the real `python -m vector_policy.serve` in a subprocess, so the benchmark is
-tested against the server a competition runs, not against a stand-in. It needs the `vector-policy`
+`serve_policy` runs the real `python -m vector_protocol.serve` in a subprocess, so the benchmark is
+tested against the server a competition runs, not against a stand-in. It needs the `vector-protocol`
 distribution, which the benchmark's CI cannot install: every test using it skips there.
 """
 
@@ -77,16 +77,18 @@ class Served:
 
 @pytest.fixture
 def replay_manifest():
-    """The `policy.yaml` of vector-policy's replay example: under `VECTOR_POLICY_EXAMPLES`, or beside
-    the installed package's source tree."""
-    vector_policy = pytest.importorskip("vector_policy")
-    root = os.environ.get("VECTOR_POLICY_EXAMPLES")
+    """The `policy.yaml` of vector-protocol's replay example: under `VECTOR_PROTOCOL_EXAMPLES`, or
+    beside the installed package's source tree."""
+    vector_protocol = pytest.importorskip("vector_protocol")
+    root = os.environ.get("VECTOR_PROTOCOL_EXAMPLES")
     examples = (
-        Path(root) if root else Path(vector_policy.__file__).resolve().parents[2] / "examples"
+        Path(root) if root else Path(vector_protocol.__file__).resolve().parents[2] / "examples"
     )
     manifest = examples / "replay_policy" / "policy.yaml"
     if not manifest.is_file():
-        pytest.skip(f"no vector-policy replay example at {manifest}; set VECTOR_POLICY_EXAMPLES")
+        pytest.skip(
+            f"no vector-protocol replay example at {manifest}; set VECTOR_PROTOCOL_EXAMPLES"
+        )
     return manifest
 
 
@@ -110,9 +112,9 @@ def policy_repo(tmp_path):
 
 @pytest.fixture
 def serve_policy(monkeypatch):
-    """`serve_policy(manifest)`: `python -m vector_policy.serve` listening on a Unix socket, its key in
-    `AUTHKEY_ENV` for run-unit to read. Every server is killed, if still alive, afterwards."""
-    pytest.importorskip("vector_policy")
+    """`serve_policy(manifest)`: `python -m vector_protocol.serve` listening on a Unix socket, its key
+    in `AUTHKEY_ENV` for run-unit to read. Every server is killed, if still alive, afterwards."""
+    pytest.importorskip("vector_protocol")
     started: list[Served] = []
 
     def start(manifest, *, idle_timeout_s=120.0):
@@ -120,7 +122,7 @@ def serve_policy(monkeypatch):
         directory = Path(tempfile.mkdtemp(prefix="robotwin-bench-"))
         authkey = secrets.token_bytes(32)
         address, log_file = directory / "policy.sock", directory / "policy.log"
-        argv = [sys.executable, "-m", "vector_policy.serve", "--manifest", str(manifest)]
+        argv = [sys.executable, "-m", "vector_protocol.serve", "--manifest", str(manifest)]
         argv += ["--address", str(address), "--authkey-env", AUTHKEY_ENV]
         argv += ["--log-file", str(log_file), "--idle-timeout-s", str(idle_timeout_s)]
         env = {**os.environ, AUTHKEY_ENV: authkey.hex(), "PYTHONDONTWRITEBYTECODE": "1"}

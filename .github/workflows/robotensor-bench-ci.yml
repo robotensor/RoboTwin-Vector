@@ -23,7 +23,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: "${{ matrix.python }}" }
-      # vector-policy lives in the private orchestrator repository and is on no package index, so
+      # vector-protocol lives in the private orchestrator repository and is on no package index, so
       # it is not installed here: the tests that drive a served policy importorskip it and skip.
       - run: pip install -r robotensor_bench/requirements.txt pytest
       - run: PYTHONPATH=$PWD pytest -c robotensor_bench/pytest.ini robotensor_bench/tests -q -m "not sim"

@@ -1,6 +1,6 @@
 """A policy served at an address plays a saved prompt in the real simulator.
 
-Needs the `vector-policy` distribution installed in the simulator environment, and its replay
+Needs the `vector-protocol` distribution installed in the simulator environment, and its replay
 example (see `tests/conftest.py`); skips without them.
 """
 

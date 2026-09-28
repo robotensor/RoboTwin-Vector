@@ -1,7 +1,7 @@
 """A policy served at an address: what the adapter sends it, and what each way it fails costs.
 
-The adapter is driven through a fake `vector_policy.client.RemotePolicy` here, which fails exactly
-where a test says; `test_served_policy.py` drives a real server. Tests that need `vector_policy`'s
+The adapter is driven through a fake `vector_protocol.client.RemotePolicy` here, which fails exactly
+where a test says; `test_served_policy.py` drives a real server. Tests that need `vector_protocol`'s
 exception types skip without it (the benchmark's CI cannot install it); the rest run everywhere.
 """
 
@@ -31,8 +31,8 @@ def _fake_sim(monkeypatch):
 
 @pytest.fixture
 def errors():
-    """`vector_policy.errors`, whose exceptions the adapter maps; the test skips without it."""
-    return pytest.importorskip("vector_policy.errors")
+    """`vector_protocol.errors`, whose exceptions the adapter maps; the test skips without it."""
+    return pytest.importorskip("vector_protocol.errors")
 
 
 class FakeClock:
@@ -66,7 +66,7 @@ class Script:
         client's does, with the error the real client raises."""
         seconds = self.seconds.get(op, 0.0)
         if seconds >= timeout_s:
-            from vector_policy.errors import PolicyUnavailable
+            from vector_protocol.errors import PolicyUnavailable
 
             self.clock.now += timeout_s
             raise PolicyUnavailable(f"{op}: no answer within {timeout_s:g}s", op=op)
@@ -74,8 +74,8 @@ class Script:
 
 
 class FakeClient:
-    """Stands in for `vector_policy.client.RemotePolicy`: replays the demonstration's actions, as the
-    replay example does, and records each call with the timeout it was made under."""
+    """Stands in for `vector_protocol.client.RemotePolicy`: replays the demonstration's actions, as
+    the replay example does, and records each call with the timeout it was made under."""
 
     def __init__(self, script, address, authkey, timeout_s, log_file):
         script.clients.append(self)
@@ -250,7 +250,7 @@ def test_a_policy_that_cannot_be_spoken_to_voids_on_the_policy(
 def test_a_policy_log_swapped_for_a_link_is_never_followed(tmp_path, errors, monkeypatch):
     # The policy can write beside its log. A path resolved when run-unit starts would open the
     # link's target, and the client's no-follow open would never see a link to refuse.
-    logs = pytest.importorskip("vector_policy.logs")
+    logs = pytest.importorskip("vector_protocol.logs")
     secret = tmp_path / "host-secret"
     secret.write_text("HOST-SECRET-TOKEN\n")
     (tmp_path / "logs").mkdir()
@@ -307,7 +307,8 @@ def test_a_unit_out_of_time_while_the_policy_is_within_its_budget_is_void_on_the
 
 
 def test_what_a_hostile_server_says_is_bounded_before_it_reaches_the_result(tmp_path, errors):
-    # vector_policy.serve cuts its messages short; a server that is not vector_policy.serve need not.
+    # vector_protocol.serve cuts its messages short; a server that is not vector_protocol.serve
+    # need not.
     name = {**REPLAY, "policy": "P" * 3_000_000}
     raised = errors.PolicyUnavailable(
         "reset: RoboTwinError: " + "M" * 1_000_000,
@@ -423,18 +424,18 @@ def test_a_served_policy_is_not_reset_without_its_episodes_seed(errors):
     assert script.clients == []  # nothing connected
 
 
-def test_a_served_policy_needs_vector_policy_installed(monkeypatch):
-    for name in ("vector_policy", "vector_policy.errors", "vector_policy.client"):
+def test_a_served_policy_needs_vector_protocol_installed(monkeypatch):
+    for name in ("vector_protocol", "vector_protocol.errors", "vector_protocol.client"):
         monkeypatch.setitem(sys.modules, name, None)
-    with pytest.raises(PolicyError, match="needs vector-policy installed"):
+    with pytest.raises(PolicyError, match="needs vector-protocol installed"):
         remote.RemotePolicy("/run/policy.sock", KEY)
 
 
-def test_the_benchmark_imports_without_vector_policy():
+def test_the_benchmark_imports_without_vector_protocol():
     # The adapter imports the client only when one is built, so the core never needs it.
     code = (
         "import sys; import robotensor_bench.cli, robotensor_bench.remote, robotensor_bench.unit; "
-        "assert 'vector_policy' not in sys.modules, sorted(sys.modules)"
+        "assert 'vector_protocol' not in sys.modules, sorted(sys.modules)"
     )
     subprocess.run([sys.executable, "-c", code], check=True)
 

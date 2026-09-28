@@ -1,10 +1,10 @@
 """A policy served at an address: `robotwin-bench run-unit --policy-address ADDR --authkey-env NAME`.
 
 A competitor's policy is untrusted code in a container of its own, so the benchmark cannot import
-it. It is served by `python -m vector_policy.serve` (the `vector-policy` distribution), and
-`RemotePolicy` is the `BenchPolicy` that drives it through `vector_policy.client.RemotePolicy`. That
-client is imported only when a `RemotePolicy` is built: the benchmark imports, runs and is tested
-without `vector_policy` installed.
+it. It is served by `python -m vector_protocol.serve` (the `vector-protocol` distribution), and
+`RemotePolicy` is the `BenchPolicy` that drives it through `vector_protocol.client.RemotePolicy`.
+That client is imported only when a `RemotePolicy` is built: the benchmark imports, runs and is
+tested without `vector_protocol` installed.
 
 What crosses the socket is public, under the names `prompt.npz` gives it:
 
@@ -19,8 +19,8 @@ What crosses the socket is public, under the names `prompt.npz` gives it:
                           -> "action", (A,) or (H, A); `BenchPolicy.act` checks its width against
                              `action_dims[action_type]` and hands the rows to the rollout
 
-How a remote failure ends the unit follows how `vector_policy.client` reports one. Every failure is
-a `PolicyUnavailable`, whose `remote_type` is set exactly when the server sent an error reply:
+How a remote failure ends the unit follows how `vector_protocol.client` reports one. Every failure
+is a `PolicyUnavailable`, whose `remote_type` is set exactly when the server sent an error reply:
 
 - an error reply to `reset`, `prompt` or `act` is the policy raising. It has failed, as a local
   policy that raises has: `PolicyError`, so the unit is scored, success false, never void.
@@ -75,8 +75,8 @@ MAX_ACTION_ROWS = 4096
 #: says, and it goes into result.json twice.
 MAX_NAME_CHARS = 200
 #: How much of a remote failure's text reaches result.json: its start, which names the call and
-#: the reason, and its end, which holds the server's log tail. `vector_policy.serve` bounds both; a
-#: hostile server bounds neither.
+#: the reason, and its end, which holds the server's log tail. `vector_protocol.serve` bounds both;
+#: a hostile server bounds neither.
 REASON_HEAD_CHARS = 4000
 REASON_TAIL_CHARS = 8192
 #: How long reaching the address and authenticating may take. The orchestrator runs run-unit once
@@ -154,7 +154,7 @@ class RemotePolicy(BenchPolicy):
     Nothing is sent until the first `reset`, which connects and says `hello`. `close` says `close`
     and drops the connection, after which the server exits; run-unit calls it however the unit
     ended. `deadline` is a `clock()` reading no call runs past, or None. `client_factory` stands
-    in for `vector_policy.client.RemotePolicy` and `clock` for `time.monotonic` in tests.
+    in for `vector_protocol.client.RemotePolicy` and `clock` for `time.monotonic` in tests.
     """
 
     name = "remote"
@@ -176,13 +176,13 @@ class RemotePolicy(BenchPolicy):
     ) -> None:
         super().__init__()
         try:
-            from vector_policy.errors import PolicyUnavailable, WireError
+            from vector_protocol.errors import PolicyUnavailable, WireError
 
             if client_factory is None:
-                from vector_policy.client import RemotePolicy as client_factory
+                from vector_protocol.client import RemotePolicy as client_factory
         except ImportError as exc:
             raise PolicyError(
-                f"a policy served at an address needs vector-policy installed: {exc}"
+                f"a policy served at an address needs vector-protocol installed: {exc}"
             ) from exc
         close_timeout_s = CLOSE_TIMEOUT_S if close_timeout_s is None else close_timeout_s
         for what, seconds in (
@@ -207,7 +207,7 @@ class RemotePolicy(BenchPolicy):
         self._clock = clock
         self._built = clock()
         # Absolute before the RoboTwin seam moves the working directory, and never resolved: the
-        # policy can write beside its log, and `vector_policy.logs.tail` refuses to follow a log
+        # policy can write beside its log, and `vector_protocol.logs.tail` refuses to follow a log
         # swapped for a link only while the path it opens still ends in that link.
         self.log_file = None if log_file is None else Path(os.path.abspath(log_file))
         #: The served policy's `action_type` and name, known once it has answered `hello`.

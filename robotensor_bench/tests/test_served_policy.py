@@ -1,8 +1,8 @@
-"""run-unit against a real `python -m vector_policy.serve`, through the command line.
+"""run-unit against a real `python -m vector_protocol.serve`, through the command line.
 
 The replay example served at an address, a server killed mid-episode, a policy that hangs or
 raises, one the server cannot build, and every byte run-unit sends a policy. The simulator is the
-fake one; the server, the client and the socket are real. Skips without vector-policy.
+fake one; the server, the client and the socket are real. Skips without vector-protocol.
 """
 
 import contextlib
@@ -20,7 +20,7 @@ import pytest
 from fake_robotwin import FakeConfig, FakeTaskEnv, FakeUnstable
 from robotensor_bench import cli, prompt, records, remote, robotwin, unit
 
-pytest.importorskip("vector_policy")
+pytest.importorskip("vector_protocol")
 pytest.importorskip("imageio_ffmpeg")
 
 TASK = "click_bell"
