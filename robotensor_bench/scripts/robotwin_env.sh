@@ -2,12 +2,14 @@
 #
 # install_robotwin.sh writes the NVIDIA Vulkan ICD and EGL vendor manifests into the conda env
 # when it cannot write them system-wide (not root). SAPIEN only finds them through these
-# variables; `robotensor_bench` sets the same defaults itself, so benchmark commands need nothing.
-_rt_prefix="${CONDA_ROOT:-/root/miniforge3}/envs/${ROBOTWIN_ENV_NAME:-robotwin}/share/robotwin-bench"
-if [[ -f "${_rt_prefix}/vulkan/icd.d/nvidia_icd.json" && -z "${VK_ICD_FILENAMES:-}" ]]; then
-    export VK_ICD_FILENAMES="${_rt_prefix}/vulkan/icd.d/nvidia_icd.json"
-fi
-if [[ -f "${_rt_prefix}/glvnd/egl_vendor.d/10_nvidia.json" && -z "${__EGL_VENDOR_LIBRARY_FILENAMES:-}" ]]; then
-    export __EGL_VENDOR_LIBRARY_FILENAMES="${_rt_prefix}/glvnd/egl_vendor.d/10_nvidia.json"
-fi
+# variables; `robotensor_bench` sets the same defaults itself, so `rt-bench` commands need nothing.
+# An env installed before the harness moved keeps them under share/robotwin-bench.
+for _rt_prefix in "${CONDA_ROOT:-/root/miniforge3}/envs/${ROBOTWIN_ENV_NAME:-robotwin}/share/"{robotensor-bench,robotwin-bench}; do
+    if [[ -f "${_rt_prefix}/vulkan/icd.d/nvidia_icd.json" && -z "${VK_ICD_FILENAMES:-}" ]]; then
+        export VK_ICD_FILENAMES="${_rt_prefix}/vulkan/icd.d/nvidia_icd.json"
+    fi
+    if [[ -f "${_rt_prefix}/glvnd/egl_vendor.d/10_nvidia.json" && -z "${__EGL_VENDOR_LIBRARY_FILENAMES:-}" ]]; then
+        export __EGL_VENDOR_LIBRARY_FILENAMES="${_rt_prefix}/glvnd/egl_vendor.d/10_nvidia.json"
+    fi
+done
 unset _rt_prefix

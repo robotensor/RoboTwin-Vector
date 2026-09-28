@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build the simulator environment the benchmark's `-m sim` tests and runs need.
+# Build the simulator environment the harness's `-m sim` tests and `rt-bench` commands need.
 #
 # RoboTwin 2.0 pins python 3.10 with the numpy 1.x ABI, and its native extensions (sapien, mplib,
 # toppra, CuRobo) will not resolve against a newer stack, so this creates a dedicated conda env
@@ -14,7 +14,7 @@
 #
 #   bash scripts/install_robotwin.sh              # env, deps, patches, rendering, CuRobo, assets
 #   ROBOTWIN_SKIP_ASSETS=1 bash scripts/...       # everything but the multi-GB asset download
-#   ROBOTWIN_ROOT=/path/to/RoboTwin bash ...      # a RoboTwin checkout other than the one bench/ is in
+#   ROBOTWIN_ROOT=/path/to/RoboTwin bash ...      # a RoboTwin checkout other than the one this is in
 #   ROBOTWIN_GPU_PATH=reference|blackwell bash ...# force a path instead of detecting it
 #
 # pytorch3d is deliberately not installed. RoboTwin imports it in a try/except in
@@ -22,9 +22,9 @@
 # and joint state only, so paying for a CUDA source build buys nothing.
 set -euo pipefail
 
-# REPO_ROOT is bench/, this harness; the RoboTwin checkout is the fork it sits in.
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ROBOTWIN_ROOT="${ROBOTWIN_ROOT:-$(cd "${REPO_ROOT}/.." && pwd)}"
+# HARNESS_ROOT is robotensor_bench/; the RoboTwin checkout is the fork it sits at the root of.
+HARNESS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROBOTWIN_ROOT="${ROBOTWIN_ROOT:-$(cd "${HARNESS_ROOT}/.." && pwd)}"
 CONDA_ROOT="${CONDA_ROOT:-/root/miniforge3}"
 ENV_NAME="${ROBOTWIN_ENV_NAME:-robotwin}"
 PY_VERSION="3.10"
@@ -146,14 +146,14 @@ if ! ldconfig -p | grep -q 'libEGL\.so\.1 '; then
 fi
 # System-wide when root, as the driver package would place them; otherwise inside the env, where
 # robotensor_bench points SAPIEN at them (see scripts/robotwin_env.sh for interactive shells).
-if [[ ${EUID} -eq 0 ]]; then MANIFEST_ROOT=/usr/share; else MANIFEST_ROOT="${ENV_PREFIX}/share/robotwin-bench"; fi
-if ! has_manifest /usr/share/vulkan/icd.d /etc/vulkan/icd.d "${ENV_PREFIX}/share/robotwin-bench/vulkan/icd.d"; then
+if [[ ${EUID} -eq 0 ]]; then MANIFEST_ROOT=/usr/share; else MANIFEST_ROOT="${ENV_PREFIX}/share/robotensor-bench"; fi
+if ! has_manifest /usr/share/vulkan/icd.d /etc/vulkan/icd.d "${ENV_PREFIX}/share/robotensor-bench/vulkan/icd.d" "${ENV_PREFIX}/share/robotwin-bench/vulkan/icd.d"; then
     log "writing the NVIDIA Vulkan ICD manifest under ${MANIFEST_ROOT}"
     mkdir -p "${MANIFEST_ROOT}/vulkan/icd.d"
     printf '{\n  "file_format_version": "1.0.0",\n  "ICD": {"library_path": "libGLX_nvidia.so.0", "api_version": "1.3.0"}\n}\n' \
         > "${MANIFEST_ROOT}/vulkan/icd.d/nvidia_icd.json"
 fi
-if ! has_manifest /usr/share/glvnd/egl_vendor.d /etc/glvnd/egl_vendor.d "${ENV_PREFIX}/share/robotwin-bench/glvnd/egl_vendor.d"; then
+if ! has_manifest /usr/share/glvnd/egl_vendor.d /etc/glvnd/egl_vendor.d "${ENV_PREFIX}/share/robotensor-bench/glvnd/egl_vendor.d" "${ENV_PREFIX}/share/robotwin-bench/glvnd/egl_vendor.d"; then
     log "writing the NVIDIA EGL vendor manifest under ${MANIFEST_ROOT}"
     mkdir -p "${MANIFEST_ROOT}/glvnd/egl_vendor.d"
     printf '{\n  "file_format_version": "1.0.0",\n  "ICD": {"library_path": "libEGL_nvidia.so.0"}\n}\n' \
@@ -161,7 +161,7 @@ if ! has_manifest /usr/share/glvnd/egl_vendor.d /etc/glvnd/egl_vendor.d "${ENV_P
 fi
 log "checking that SAPIEN renders (upstream scripts/test_render.py)"
 # shellcheck source=robotwin_env.sh
-source "${REPO_ROOT}/scripts/robotwin_env.sh"
+source "${HARNESS_ROOT}/scripts/robotwin_env.sh"
 # Captured, then echoed: `tee /dev/stderr` reopens stderr's file with O_TRUNC, which wipes a log
 # that the script's output is redirected to.
 render_out=$(cd "${ROBOTWIN_ROOT}" && "${PY}" scripts/test_render.py 2>&1) || true
@@ -218,11 +218,12 @@ if ! "${PY}" -c "import curobo" 2>/dev/null; then
     "${PY}" -m pip install -q "warp-lang==1.12.0"
 fi
 
-# --- benchmark package ------------------------------------------------------
-if ! "${PY}" -c "import robotensor_bench" 2>/dev/null; then
-    log "installing robotensor_bench into ${ENV_NAME}"
-    "${PY}" -m pip install -q -e "${REPO_ROOT}" --no-deps
-    "${PY}" -m pip install -q pytest "imageio-ffmpeg>=0.5"
+# --- harness requirements ---------------------------------------------------
+# robotensor_bench is run from the checkout (python -m robotensor_bench.cli from the repository
+# root) and never installed; only what it imports beyond RoboTwin's own stack goes into the env.
+if ! "${PY}" -c "import imageio_ffmpeg, pytest" 2>/dev/null; then
+    log "installing the harness's requirements into ${ENV_NAME}"
+    "${PY}" -m pip install -q -r "${HARNESS_ROOT}/requirements.txt" pytest
 fi
 
 # --- assets -----------------------------------------------------------------
