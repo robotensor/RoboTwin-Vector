@@ -5,7 +5,7 @@
         --eval-seed-candidates 2001001,2001002,2001003,2001004 --legal-joints --out pool/vl-000
     rt-bench demo verify --demo pool/vl-000 (the same unit flags)
     rt-bench eval run --demo pool/vl-000 --policy /tmp/policy.sock \
-        --authkey-env VECTOR_PROTOCOL_AUTHKEY --out results/challenger/vl-000
+        --authkey-env VECTOR_AUTHKEY --out results/challenger/vl-000
     rt-bench eval run --demo pool/vl-000 --stub-policy replay --out runs/replay
     rt-bench tasks list --json
     rt-bench config check --task-config level1 --embodiment franka-panda
@@ -56,7 +56,7 @@ EXIT_PROMPT = 4
 
 PROG = "rt-bench"
 #: The variable `eval run --policy` reads the served policy's key from unless told another.
-AUTHKEY_ENV = "VECTOR_PROTOCOL_AUTHKEY"
+AUTHKEY_ENV = "VECTOR_AUTHKEY"
 #: `--stub-policy`: a policy run here instead of a served one. `zero` holds the robot where it is,
 #: `replay` plays the demonstration's actions back and, in the Same Scene setting, must succeed.
 STUBS = ("zero", "replay")
