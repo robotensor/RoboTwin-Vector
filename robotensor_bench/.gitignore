@@ -1,0 +1,3 @@
+# What rt-bench selftest and local runs write (the default --out of selftest).
+runs/
+__pycache__/
