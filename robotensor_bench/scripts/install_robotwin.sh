@@ -38,7 +38,9 @@ if [[ ! -f "${ROBOTWIN_ROOT}/envs/_base_task.py" ]]; then
 fi
 
 # --- GPU path -----------------------------------------------------------------
-ARCH="$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader | head -1 | tr -d ' ')"
+# The first card's; `sed -n 1p` reads every line, where `head -1` would close the pipe early and,
+# on a host of several GPUs, fail the script on nvidia-smi's SIGPIPE under pipefail.
+ARCH="$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader | sed -n 1p | tr -d ' ')"
 if [[ -z "${ROBOTWIN_GPU_PATH:-}" ]]; then
     if (( ${ARCH%%.*} >= 10 )); then ROBOTWIN_GPU_PATH=blackwell; else ROBOTWIN_GPU_PATH=reference; fi
 fi
@@ -75,6 +77,10 @@ if [[ ! -x "${ENV_PREFIX}/bin/python" ]]; then
     conda create -y -q -n "${ENV_NAME}" "python=${PY_VERSION}"
 fi
 PY="${ENV_PREFIX}/bin/python"
+# pip reads the host's /etc/pip.conf in every environment, and images that ship their own torch
+# pin it there (`constraint = ...`); that pin would refuse this env's torch. Everything installed
+# here is pinned by this script, so no inherited constraints file applies to it.
+export PIP_CONSTRAINT=/dev/null
 
 # --- setuptools -------------------------------------------------------------
 # Upstream's final pin. sapien 3.0.0b1 does `import pkg_resources`, which setuptools 81 removed,
