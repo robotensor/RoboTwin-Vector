@@ -17,6 +17,11 @@
 #   ROBOTWIN_ROOT=/path/to/RoboTwin bash ...      # a RoboTwin checkout other than the one this is in
 #   ROBOTWIN_GPU_PATH=reference|blackwell bash ...# force a path instead of detecting it
 #
+# Without a GPU (a docker build), give the path and the compute capabilities to build CuRobo for,
+# as TORCH_CUDA_ARCH_LIST takes them, and skip the render check, which needs a GPU:
+#   ROBOTWIN_GPU_PATH=blackwell ROBOTWIN_CUDA_ARCH="8.0;8.6;8.9;9.0;10.0;12.0+PTX" \
+#       ROBOTWIN_SKIP_RENDER_CHECK=1 bash scripts/install_robotwin.sh
+#
 # pytorch3d is deliberately not installed. RoboTwin imports it in a try/except in
 # `envs/camera/camera.py` for farthest-point sampling of point clouds; the benchmark records rgb
 # and joint state only, so paying for a CUDA source build buys nothing.
@@ -40,7 +45,12 @@ fi
 # --- GPU path -----------------------------------------------------------------
 # The first card's; `sed -n 1p` reads every line, where `head -1` would close the pipe early and,
 # on a host of several GPUs, fail the script on nvidia-smi's SIGPIPE under pipefail.
-ARCH="$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader | sed -n 1p | tr -d ' ')"
+if [[ -n "${ROBOTWIN_CUDA_ARCH:-}" ]]; then
+    ARCH="${ROBOTWIN_CUDA_ARCH}"
+    : "${ROBOTWIN_GPU_PATH:?ROBOTWIN_CUDA_ARCH needs ROBOTWIN_GPU_PATH (reference or blackwell)}"
+else
+    ARCH="$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader | sed -n 1p | tr -d ' ')"
+fi
 if [[ -z "${ROBOTWIN_GPU_PATH:-}" ]]; then
     if (( ${ARCH%%.*} >= 10 )); then ROBOTWIN_GPU_PATH=blackwell; else ROBOTWIN_GPU_PATH=reference; fi
 fi
@@ -165,16 +175,20 @@ if ! has_manifest /usr/share/glvnd/egl_vendor.d /etc/glvnd/egl_vendor.d "${ENV_P
     printf '{\n  "file_format_version": "1.0.0",\n  "ICD": {"library_path": "libEGL_nvidia.so.0"}\n}\n' \
         > "${MANIFEST_ROOT}/glvnd/egl_vendor.d/10_nvidia.json"
 fi
-log "checking that SAPIEN renders (upstream scripts/test_render.py)"
-# shellcheck source=robotwin_env.sh
-source "${HARNESS_ROOT}/scripts/robotwin_env.sh"
-# Captured, then echoed: `tee /dev/stderr` reopens stderr's file with O_TRUNC, which wipes a log
-# that the script's output is redirected to.
-render_out=$(cd "${ROBOTWIN_ROOT}" && "${PY}" scripts/test_render.py 2>&1) || true
-printf '%s\n' "${render_out}" >&2
-if ! grep -q "Render Well" <<<"${render_out}"; then
-    echo "SAPIEN cannot render on this machine; see 'Rendering' in docs/install.md" >&2
-    exit 1
+if [[ "${ROBOTWIN_SKIP_RENDER_CHECK:-0}" == "1" ]]; then
+    log "skipping the render check (ROBOTWIN_SKIP_RENDER_CHECK=1): run scripts/test_render.py on a GPU"
+else
+    log "checking that SAPIEN renders (upstream scripts/test_render.py)"
+    # shellcheck source=robotwin_env.sh
+    source "${HARNESS_ROOT}/scripts/robotwin_env.sh"
+    # Captured, then echoed: `tee /dev/stderr` reopens stderr's file with O_TRUNC, which wipes a log
+    # that the script's output is redirected to.
+    render_out=$(cd "${ROBOTWIN_ROOT}" && "${PY}" scripts/test_render.py 2>&1) || true
+    printf '%s\n' "${render_out}" >&2
+    if ! grep -q "Render Well" <<<"${render_out}"; then
+        echo "SAPIEN cannot render on this machine; see 'Rendering' in docs/install.md" >&2
+        exit 1
+    fi
 fi
 
 # --- CuRobo -----------------------------------------------------------------
