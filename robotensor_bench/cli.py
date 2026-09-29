@@ -180,6 +180,13 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="PATH",
         help="the served policy's log file, whose tail ends the error of a unit it voided",
     )
+    run.add_argument(
+        "--step-ratio",
+        type=_positive_ratio,
+        metavar="R",
+        help="stop the rollout after R times the expert's steps in the scored scene, or at the "
+        "task's own step limit if that comes first (default: the task's limit alone)",
+    )
     _add_denoiser(run)
     _add_expect_source(run)
     run.set_defaults(run=_eval_run)
@@ -301,7 +308,7 @@ def _eval_run(args: argparse.Namespace) -> int:
         policy = {"zero": DummyPolicy, "replay": ReplayPolicy}[args.stub_policy]()
     try:
         # Resolved before entering the RoboTwin seam, which moves the working directory.
-        result = run_unit(prompt.resolve(), policy, out)
+        result = run_unit(prompt.resolve(), policy, out, step_ratio=args.step_ratio)
     finally:
         # However the unit ended: a served policy's server exits once its client has gone.
         policy.close()
@@ -414,6 +421,7 @@ def _selftest(args: argparse.Namespace) -> int:
             policy_budget_s=None,
             unit_timeout_s=None,
             policy_log=None,
+            step_ratio=None,
         )
     )
     if status != EXIT_OK:
@@ -597,6 +605,16 @@ def _positive_seconds(text: str) -> float:
     if not 0 < seconds < float("inf"):
         raise argparse.ArgumentTypeError(f"{text!r} is not a positive number of seconds")
     return seconds
+
+
+def _positive_ratio(text: str) -> float:
+    try:
+        ratio = float(text)
+    except ValueError:
+        ratio = float("nan")
+    if not 0 < ratio < float("inf"):
+        raise argparse.ArgumentTypeError(f"{text!r} is not a positive ratio")
+    return ratio
 
 
 def _fail(message: str, code: int) -> int:

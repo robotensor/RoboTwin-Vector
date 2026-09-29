@@ -55,6 +55,39 @@ def test_the_demonstration_comes_from_one_scene_and_the_unit_is_scored_in_anothe
     assert run["success"] is False
 
 
+class _StepsBySeed(FakeTaskEnv):
+    """An expert that takes a different number of steps in each scene."""
+
+    def __init__(self, steps, **kwargs):
+        super().__init__(**kwargs)
+        self.steps_by_seed = steps
+
+    def play_once(self):
+        self.expert_steps = self.steps_by_seed[self.seed]
+        return super().play_once()
+
+
+def test_the_step_ratio_scales_the_experts_steps_in_the_scored_scene_not_the_demonstrations(
+    tmp_path,
+):
+    env = _StepsBySeed({8: 4, 34: 10})
+    out = tmp_path / "prompt"
+    assert unit.materialize(TASK, [8], FakeConfig(), out, eval_seeds=[34], task_env=env).ok
+    _, meta = prompt.read_prompt(out / "prompt.npz")
+    assert meta["expert"]["steps"] == 10 and meta["demonstration_scene"]["expert"]["steps"] == 4
+    result = unit.read_result(out)
+    assert result["steps"] == 4 and result["scene_steps"] == 10
+
+    run = unit.run_unit(
+        out / "prompt.npz",
+        ReplayPolicy(),
+        tmp_path / "run",
+        task_env=FakeTaskEnv(step_lim=50),
+        step_ratio=2,
+    )
+    assert run["step_limit"] == 20
+
+
 def test_the_evaluation_scene_is_verified_without_rendering_a_camera(tmp_path):
     env = FakeTaskEnv()
     unit.materialize(TASK, [8], FakeConfig(), tmp_path / "p", eval_seeds=[34], task_env=env)

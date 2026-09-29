@@ -21,8 +21,8 @@ __version__ = "0.3.0"
 
 #: The version of the command-line contract the competition drives: the verbs, their flags, the
 #: files they write and the exit codes. 1 was the plugin ABI of the `robotensor-benchmark-robotwin`
-#: distribution this folder replaced.
-CLI_API = 2
+#: distribution this folder replaced; 3 added `eval run --step-ratio`.
+CLI_API = 3
 
 #: The files a source digest covers: every module and data file (`tasks.yml`) of the harness.
 SOURCE_SUFFIXES = (".py", ".yml")

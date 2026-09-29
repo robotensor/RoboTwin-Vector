@@ -181,6 +181,17 @@ def test_a_task_the_harness_does_not_have_is_refused_and_leaves_no_earlier_promp
     assert sorted(p.name for p in tmp_path.iterdir()) == []
 
 
+def test_eval_run_takes_a_step_ratio(tmp_path, fake_sim, capsys):
+    assert cli.main([*MAKE, "--out", str(tmp_path / "p")]) == 0
+    argv = ["eval", "run", "--demo", str(tmp_path / "p"), "--stub-policy", "zero"]
+    assert cli.main([*argv, "--step-ratio", "0.5", "--out", str(tmp_path / "r")]) == 0
+    capsys.readouterr()
+    result = json.loads((tmp_path / "r" / "result.json").read_text())
+    assert result["step_limit"] == result["steps"] < 50
+    with pytest.raises(SystemExit):
+        cli.main([*argv, "--step-ratio", "0", "--out", str(tmp_path / "r2")])
+
+
 def test_eval_run_exits_0_on_a_failed_policy_and_3_on_a_harness_error(tmp_path, fake_sim, capsys):
     from robotensor_bench import robotwin
 

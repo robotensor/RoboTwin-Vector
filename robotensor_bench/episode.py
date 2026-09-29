@@ -158,6 +158,7 @@ def evaluate(
     score_policy_faults: bool = False,
     note: str = "",
     policy_seed: int | None = None,
+    step_limit: int | None = None,
 ) -> Evaluation:
     """Rebuild the demonstration's scene, check it is the same one, and roll the policy out in it.
 
@@ -166,7 +167,8 @@ def evaluate(
     whatever happened. `note` — in a benchmark run, what writing the demonstration clip said — is
     appended to the detail of a scene that was built, ahead of the evaluation clip's own note.
     The policy is reset with the episode's public `EpisodeInfo`: the robot, its live action
-    widths and `policy_seed`, which is never `seed`.
+    widths and `policy_seed`, which is never `seed`. `step_limit` lowers the task's own step
+    limit (`step_lim`) for this rollout, never raises it.
 
     A `PolicyError`, and anything `reset` or `set_demonstration` raises, propagates, as in
     `run_episode`: in a run of the benchmark an adapter at fault is a bug to fix. With
@@ -184,6 +186,9 @@ def evaluate(
     except Exception as exc:
         robotwin.close(task_env)
         return _not_scored(f"evaluation scene failed to build: {type(exc).__name__}: {exc}")
+    if step_limit is not None:
+        own = getattr(task_env, "step_lim", None)
+        task_env.step_lim = step_limit if own is None else min(int(own), int(step_limit))
 
     try:
         live = robotwin.fingerprint(task_env)

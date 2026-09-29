@@ -25,6 +25,7 @@ from __future__ import annotations
 import functools
 import hashlib
 import json
+import math
 import os
 import sys
 import time
@@ -162,8 +163,9 @@ def materialize(
 
     The result carries what the orchestrator's `read_result` reads from either command —
     `success`, `void`, `void_cause`, `steps`, `error` — next to `ok`: a written prompt is a
-    success whose `steps` are the demonstration's actions and whose `scene_seed` is the scene the
-    unit is evaluated in; every candidate of either list rejected is void with `void_cause`
+    success whose `steps` are the demonstration's actions, whose `scene_steps` are the expert's in
+    the scene the unit is evaluated in (`meta.expert.steps`, what `run_unit`'s `step_ratio`
+    scales), and whose `scene_seed` is that scene; every candidate of either list rejected is void with `void_cause`
     "harness" (the expert failed, not a policy), `scene_seed` None and the rejections as its
     `error`. A simulator that cannot build any scene raises `RoboTwinError`, as `generate` does,
     and a candidate list it must not try raises `UnitError`. Stale files from an earlier command
@@ -267,12 +269,17 @@ def materialize(
     if demonstration is None or demo_initial is None:
         return rejected("demonstration" if eval_candidates is not None else "", generated)
     assert generated.seed is not None
-    expert = {"scene_seeds": candidates, "attempts": attempts, "rejections": rejections}
+    expert = {
+        "scene_seeds": candidates,
+        "attempts": attempts,
+        "rejections": rejections,
+        "steps": len(demonstration) - 1,
+    }
 
     if verified is None:
         scene_seed, initial, demo_scene = generated.seed, demo_initial, None
     else:
-        if verified.initial is None or verified.seed is None:
+        if verified.initial is None or verified.seed is None or verified.demonstration is None:
             return rejected("evaluation", verified)
         scene_seed, initial = verified.seed, verified.initial
         demo_scene = {
@@ -284,6 +291,8 @@ def materialize(
             "scene_seeds": eval_candidates,
             "attempts": eval_fields["eval_attempts"],
             "rejections": eval_fields["eval_rejections"],
+            # What `eval run --step-ratio` scales: how long the expert took in the scored scene.
+            "steps": len(verified.demonstration) - 1,
         }
 
     meta = build_meta(
@@ -309,6 +318,7 @@ def materialize(
         void=False,
         void_cause=None,
         steps=len(demonstration) - 1,
+        scene_steps=expert["steps"],
         error=None,
         frames=len(demonstration),
         cameras=list(demonstration.cameras),
@@ -382,6 +392,7 @@ def build_meta(
             "scene_seeds": [int(scene_seed)],
             "attempts": [{"seed": int(scene_seed), "rejection": None, "detail": ""}],
             "rejections": {},
+            "steps": len(demonstration) - 1,
         },
         "frames": len(demonstration),
         "cameras": list(demonstration.cameras),
@@ -473,8 +484,14 @@ def run_unit(
     *,
     task_env=None,
     video: bool = True,
+    step_ratio: float | None = None,
 ) -> dict[str, Any]:
     """Evaluate `policy` on the prompt at `prompt_path`, writing `result.json` and `evaluation.mp4`.
+
+    With `step_ratio` the rollout stops after `ceil(step_ratio x the expert's steps in the scored
+    scene)` actions (`meta.expert.steps`; the demonstration's own length in a prompt without it),
+    or at the task's own limit if that comes first: a policy that cannot finish does not play out
+    the task's whole limit. `step_limit` in the result is the limit the rollout had.
 
     Never raises for what the policy did, nor for a prompt that cannot be trusted. `success` is
     the verdict once the scene was rebuilt as recorded and the policy was handed it, and a policy
@@ -589,6 +606,13 @@ def run_unit(
         return void(f"prompt meta's scene config is refused: {exc}")
     except (KeyError, TypeError, ValueError) as exc:
         return void(f"prompt meta is malformed: {type(exc).__name__}: {exc}")
+    step_limit = None
+    if step_ratio is not None:
+        expert = meta.get("expert") if isinstance(meta.get("expert"), dict) else {}
+        steps = expert.get("steps")
+        if isinstance(steps, bool) or not isinstance(steps, int) or steps < 1:
+            steps = len(demonstration) - 1
+        step_limit = max(1, math.ceil(step_ratio * steps))
 
     task_env = task_env if task_env is not None else robotwin.load_task(str(meta["task"]))
     clip = (
@@ -608,6 +632,7 @@ def run_unit(
             video=clip,
             score_policy_faults=True,
             policy_seed=episode_seed(result["prompt_sha256"]),
+            step_limit=step_limit,
         )
     except Unscorable as exc:
         # Not what the policy did, so not its failure: a policy that could not be spoken to voids

@@ -12,6 +12,7 @@ from robotensor_bench import prompt, robotwin, scene, unit
 from robotensor_bench.demo import Demonstration
 from robotensor_bench.policy import (
     BenchPolicy,
+    DummyPolicy,
     EpisodeInfo,
     PolicyUnreachable,
     ReplayPolicy,
@@ -82,7 +83,9 @@ def test_materialize_writes_the_prompt_the_clip_and_the_result(tmp_path):
         "scene_seeds": [SEED],
         "attempts": [{"seed": SEED, "rejection": None, "detail": ""}],
         "rejections": {},
+        "steps": env.expert_steps,
     }
+    assert result["scene_steps"] == env.expert_steps
     assert result["scene_seeds"] == [SEED] and result["attempts"] == meta["expert"]["attempts"]
     assert result["rejections"] == {} and result["void_cause"] is None
     assert meta["benchmark_commit"] and meta["robotwin_commit"]
@@ -154,6 +157,7 @@ def test_materialize_tries_candidates_in_order_and_keeps_the_first_the_expert_so
         "scene_seeds": [3, 5, 8, 13],
         "attempts": result["attempts"],
         "rejections": result["rejections"],
+        "steps": env.expert_steps,
     }
     run = unit.run_unit(
         out / "prompt.npz", ReplayPolicy(), tmp_path / "run", task_env=FakeTaskEnv()
@@ -221,6 +225,39 @@ def test_run_unit_succeeds_with_replay_from_the_file(tmp_path):
     assert result["benchmark_commit"] == git_commit(robotwin.REPO_ROOT)
     assert result["robotwin_commit"] == git_commit(robotwin.ROBOTWIN_ROOT)
     assert result["benchmark_commit"] and result["robotwin_commit"]
+
+
+def test_a_step_ratio_stops_the_rollout_at_that_many_times_the_experts_steps(tmp_path):
+    _, out = materialized(tmp_path, FakeTaskEnv(expert_steps=6))
+    result = unit.run_unit(
+        out / "prompt.npz",
+        DummyPolicy(),
+        tmp_path / "run",
+        task_env=FakeTaskEnv(step_lim=50),
+        step_ratio=1.5,
+    )
+    assert result["success"] is False and result["void"] is False
+    assert result["step_limit"] == 9 and result["steps"] == 9
+
+
+def test_a_step_ratio_never_raises_the_tasks_own_limit(tmp_path):
+    _, out = materialized(tmp_path, FakeTaskEnv(expert_steps=6))
+    result = unit.run_unit(
+        out / "prompt.npz",
+        DummyPolicy(),
+        tmp_path / "run",
+        task_env=FakeTaskEnv(step_lim=20),
+        step_ratio=100,
+    )
+    assert result["step_limit"] == 20 and result["steps"] == 20
+
+
+def test_without_a_step_ratio_the_rollout_has_the_tasks_limit(tmp_path):
+    _, out = materialized(tmp_path, FakeTaskEnv(expert_steps=6))
+    result = unit.run_unit(
+        out / "prompt.npz", DummyPolicy(), tmp_path / "run", task_env=FakeTaskEnv(step_lim=30)
+    )
+    assert result["step_limit"] == 30 and result["steps"] == 30
 
 
 def test_run_unit_records_the_policys_checkpoint_even_when_void(tmp_path):
