@@ -8,7 +8,7 @@
 #
 # Two GPU paths, chosen from the GPU's compute capability:
 #   reference (below 10.0: Ampere, Ada, Hopper): torch 2.4.1+cu121 and CUDA 12.1, exactly as
-#     RoboTwin pins them, so results stay comparable with the reference install in docs/install.md.
+#     RoboTwin pins them, so results stay comparable with the reference install.
 #   blackwell (10.0 and above, e.g. an RTX 5090 at 12.0): torch 2.4.1 ships no kernels for these
 #     GPUs and nvcc 12.1 cannot target them, so torch 2.8.0+cu128 and CUDA 12.8 replace them.
 #
@@ -186,7 +186,7 @@ else
     render_out=$(cd "${ROBOTWIN_ROOT}" && "${PY}" scripts/test_render.py 2>&1) || true
     printf '%s\n' "${render_out}" >&2
     if ! grep -q "Render Well" <<<"${render_out}"; then
-        echo "SAPIEN cannot render on this machine; see 'Rendering' in docs/install.md" >&2
+        echo "SAPIEN cannot render on this machine; see Troubleshooting in robotensor_bench/README.md" >&2
         exit 1
     fi
 fi

@@ -48,7 +48,7 @@ ARMS = (ONE, SWITCHING, TWO)
 LABELS = {ONE: "one arm", SWITCHING: "switching arms", TWO: "two arms"}
 
 # Upstream files in `envs/` that are not tasks.
-# `_levels` is the difficulty-level gate this fork adds (see PATCHES.md).
+# `_levels` is the difficulty-level gate this fork adds (see robotensor_bench/README.md).
 NON_TASK_STEMS = frozenset({"__init__", "_base_task", "_GLOBAL_CONFIGS", "_levels"})
 
 # Base_Task methods that produce an arm motion, with the position of their arm-tag argument.

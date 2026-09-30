@@ -3,7 +3,7 @@
 Everything else in the package stays importable without SAPIEN, assets or a GPU, so the protocol,
 records and reporting are covered by tests that run in CI. Import this module and you have taken a
 dependency on the RoboTwin checkout this package lives in: `robotensor_bench/` sits at the root of a
-RoboTwin fork (see its `PATCHES.md`), so the simulator and this harness are one commit.
+RoboTwin fork (see `robotensor_bench/README.md`), so the simulator and this harness are one commit.
 
 The mechanisms reused here, all from that checkout:
 
@@ -12,7 +12,7 @@ The mechanisms reused here, all from that checkout:
   scene, so generation is deterministic in (task, seed, config).
 - `Base_Task._take_picture()` — called from `take_dense_action` every `save_freq` control steps
   while `save_data` is set. Upstream pickles the frame to a cache directory; we intercept it and
-  keep frames in memory instead. Upstream files are patched only where `PATCHES.md` says.
+  keep frames in memory instead. Upstream files are patched only where `robotensor_bench/README.md` says.
 - `env.scene.step()` — every physics step, in `take_dense_action`, `together_move_to_pose` and
   `take_action` alike. `clock` shadows it on the scene instance to count simulated time.
 """
@@ -174,11 +174,11 @@ def load_task(task_name: str):
         if exc.name == module_name:
             raise RoboTwinError(f"RoboTwin has no task {task_name!r}") from exc
         raise RoboTwinError(
-            f"importing RoboTwin task {task_name!r} failed: {exc}; see docs/install.md"
+            f"importing RoboTwin task {task_name!r} failed: {exc}; see robotensor_bench/README.md"
         ) from exc
     except ImportError as exc:
         raise RoboTwinError(
-            f"importing RoboTwin task {task_name!r} failed: {exc}; see docs/install.md"
+            f"importing RoboTwin task {task_name!r} failed: {exc}; see robotensor_bench/README.md"
         ) from exc
     task_class = getattr(module, task_name, None)
     if task_class is None:

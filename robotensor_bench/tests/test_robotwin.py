@@ -66,7 +66,9 @@ def test_a_missing_dependency_is_reported_as_itself(importing):
 
 def test_a_failing_import_inside_a_dependency_is_reported_as_itself(importing):
     importing(ImportError("cannot import name 'CuroboPlanner' from 'envs.robot.planner'"))
-    with pytest.raises(robotwin.RoboTwinError, match="CuroboPlanner.*see docs/install.md"):
+    with pytest.raises(
+        robotwin.RoboTwinError, match="CuroboPlanner.*see robotensor_bench/README.md"
+    ):
         robotwin.load_task("place_object_basket")
 
 
