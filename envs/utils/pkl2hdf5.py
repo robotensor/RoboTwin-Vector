@@ -6,14 +6,16 @@ import sys
 from pathlib import Path
 from .images_to_video import images_to_video
 
-# Collection writes stored bits only through encode_image_bit (via
-# images_encoding). The local copy lives next to the dataset; prefer
-# XPolicyLab.utils.process_data when that package is on the path.
 _ROBOTWIN_ROOT = Path(__file__).resolve().parents[2]
-if str(_ROBOTWIN_ROOT) not in sys.path:
-    sys.path.insert(0, str(_ROBOTWIN_ROOT))
 
-from data.decode_image_bit import images_encoding
+
+def _images_encoding():
+    """The image codec, imported only when an episode is written: evaluation never needs it."""
+    if str(_ROBOTWIN_ROOT) not in sys.path:
+        sys.path.insert(0, str(_ROBOTWIN_ROOT))
+    from data.decode_image_bit import images_encoding
+
+    return images_encoding
 
 
 CAMERA_MAP = {
@@ -146,7 +148,7 @@ def create_xpolicylab_hdf5(data, hdf5_path, instructions, frequency, additional_
             source_camera = observations[source_name]
             target_camera = vision.create_group(target_name)
             colors = np.asarray(source_camera["rgb"])[:-1]
-            encoded_colors, max_len = images_encoding(colors)
+            encoded_colors, max_len = _images_encoding()(colors)
             target_camera.create_dataset(
                 "colors", data=encoded_colors, dtype=f"S{max_len}"
             )
