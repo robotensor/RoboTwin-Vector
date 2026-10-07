@@ -1,5 +1,6 @@
 models/
 data/*
+!data/decode_image_bit.py
 __pycache__/
 **/checkpoints/
 result/
